@@ -67,6 +67,10 @@ export async function identifyFoods(photo: File): Promise<IdentifiedFoods> {
     });
   } catch (e) {
     if (e instanceof Anthropic.RateLimitError) throw new UserError("Photo checks are busy right now. Please try again in a minute.");
+    if (e instanceof Anthropic.BadRequestError && /credit balance/i.test(e.message)) {
+      console.error("[photo check] Anthropic account is out of credit. Top up at console.anthropic.com → Billing.");
+      throw new UserError("Photo checks are unavailable right now. You can still log food by name.");
+    }
     if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) {
       console.error("[photo check] Anthropic credentials rejected:", e.message);
       throw new UserError(NOT_SET_UP);
