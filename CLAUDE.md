@@ -56,3 +56,5 @@ Permission keys and the area → permission map are in `src/lib/permissions.ts`.
 - Path alias `@/` → `src/`. Server-only modules start with `import "server-only"`.
 - The app must not diagnose or prescribe. Supplements record only clinician-recommended items, and appointments are never invented. Keep the "not medical advice" framing and emergency numbers (10177 / 112) intact.
 - After schema changes, run `npm run db:generate` and commit the generated SQL in `drizzle/`.
+- **Every new table must get `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` in its migration** (see `drizzle/0002_enable_rls.sql`). Production runs on Supabase, which exposes the `public` schema through a REST API; RLS with no policies blocks it, while the app (table owner) is unaffected.
+- DB SSL: `DATABASE_SSL=true` always verifies certificates; Supabase's CA goes in `DATABASE_SSL_CA` (PEM text). Never set `rejectUnauthorized: false`.
