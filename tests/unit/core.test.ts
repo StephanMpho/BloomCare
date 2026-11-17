@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { calculateDating, eddFromLmp, validateLmp, trimesterFor } from "@/lib/pregnancy";
 import { evaluateSymptoms, mergeSnapshots, fluidsSnapshotFromDrinks } from "@/lib/safety";
 import { can, sanitizePermissions } from "@/lib/permissions";
@@ -171,5 +171,17 @@ describe("food checker & helpers", () => {
     expect(todayISO(new Date("2026-11-16T22:30:00Z"))).toBe("2026-11-17");
     expect(weekStart("2026-11-17")).toBe("2026-11-16");
     expect(daysBetween("2026-10-09", "2026-11-17")).toBe(39);
+  });
+});
+
+describe("action error handling", () => {
+  it("shows UserError messages but hides unexpected errors (e.g. SQL)", async () => {
+    const { safe, UserError } = await import("@/lib/form");
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await safe(async () => { throw new UserError("Item not found."); })).toEqual({ error: "Item not found." });
+    const leaked = await safe(async () => { throw new Error('Failed query: select "password_hash" from "users" params: a@b.c'); });
+    expect(leaked?.error).toBeTruthy();
+    expect(leaked?.error).not.toMatch(/query|password|a@b\.c/i);
+    errSpy.mockRestore();
   });
 });

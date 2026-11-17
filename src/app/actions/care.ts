@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { actionContext, audit } from "@/lib/context";
-import { safe, str, bool, isoDate, hhmm } from "@/lib/form";
+import { safe, UserError, str, bool, isoDate, hhmm } from "@/lib/form";
 import { parseRand } from "@/lib/money";
 import { sastInstant, todayISO } from "@/lib/dates";
 import type { ActionResult } from "@/components/forms";
@@ -13,7 +13,7 @@ import type { ActionResult } from "@/components/forms";
 export async function saveSupplement(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return safe(async () => {
     const ctx = await actionContext();
-    if (!ctx.isOwner) throw new Error("Only she can manage supplements.");
+    if (!ctx.isOwner) throw new UserError("Only she can manage supplements.");
     const data = z.object({
       name: z.string().min(1, "Supplement name?").max(100), dose: z.string().min(1, "Enter the dose exactly as on the prescription or label.").max(40),
       unit: z.string().min(1).max(20), frequency: z.string().min(1, "How often?").max(60),
@@ -34,7 +34,7 @@ export async function saveSupplement(_: ActionResult, fd: FormData): Promise<Act
 
 export async function logDose(fd: FormData) {
   const ctx = await actionContext();
-  if (!ctx.isOwner) throw new Error("Only she can record doses.");
+  if (!ctx.isOwner) throw new UserError("Only she can record doses.");
   const s = await db.query.supplements.findFirst({ where: and(eq(schema.supplements.id, str(fd, "id")), eq(schema.supplements.pregnancyId, ctx.pregnancy.id)) });
   if (!s) return;
   const status = str(fd, "status") === "MISSED" ? "MISSED" : "TAKEN";
@@ -69,7 +69,7 @@ export async function saveAppointment(_: ActionResult, fd: FormData): Promise<Ac
     };
     if (id) {
       const ex = await db.query.appointments.findFirst({ where: and(eq(schema.appointments.id, id), eq(schema.appointments.pregnancyId, ctx.pregnancy.id)) });
-      if (!ex) throw new Error("Appointment not found.");
+      if (!ex) throw new UserError("Appointment not found.");
       await db.update(schema.appointments).set(v).where(eq(schema.appointments.id, id));
     } else {
       await db.insert(schema.appointments).values(v);
@@ -91,7 +91,7 @@ export async function deleteAppointment(fd: FormData) {
 export async function saveJournal(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return safe(async () => {
     const ctx = await actionContext();
-    if (!ctx.isOwner) throw new Error("Only she can write in the journal.");
+    if (!ctx.isOwner) throw new UserError("Only she can write in the journal.");
     await db.insert(schema.journalEntries).values({
       pregnancyId: ctx.pregnancy.id, date: todayISO(), week: ctx.dating.weeks, feeling: str(fd, "feeling"), favouriteFoods: str(fd, "favouriteFoods"),
       aversions: str(fd, "aversions"), questions: str(fd, "questions"), memories: str(fd, "memories"), private: bool(fd, "private"),
@@ -105,7 +105,7 @@ export async function saveJournal(_: ActionResult, fd: FormData): Promise<Action
 export async function addSupportRequest(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return safe(async () => {
     const ctx = await actionContext();
-    if (!ctx.isOwner) throw new Error("Only she can add requests.");
+    if (!ctx.isOwner) throw new UserError("Only she can add requests.");
     const text = z.string().min(2).max(200).parse(str(fd, "text"));
     await db.insert(schema.supportRequests).values({ pregnancyId: ctx.pregnancy.id, text });
     revalidatePath("/");

@@ -5,7 +5,7 @@ import { and, eq, gte, lt, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { actionContext } from "@/lib/context";
-import { safe, str, isoDate } from "@/lib/form";
+import { safe, UserError, str, isoDate } from "@/lib/form";
 import { addDays, monthKey, sastInstant, todayISO, nowHHMM } from "@/lib/dates";
 import { chooseTemplates, templateByKey, aggregateIngredients, SLOTS, type Slot } from "@/lib/meal-templates";
 import { parseRand } from "@/lib/money";
@@ -53,7 +53,7 @@ export async function generateWeek(fd: FormData) {
 
 async function ownedEntry(id: string, pregnancyId: string) {
   const e = await db.query.mealPlanEntries.findFirst({ where: and(eq(schema.mealPlanEntries.id, id), eq(schema.mealPlanEntries.pregnancyId, pregnancyId)) });
-  if (!e) throw new Error("Meal not found.");
+  if (!e) throw new UserError("Meal not found.");
   return e;
 }
 

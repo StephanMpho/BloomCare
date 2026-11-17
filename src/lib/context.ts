@@ -6,6 +6,7 @@ import { db, schema } from "@/db";
 import { currentUser } from "./auth";
 import { can, sanitizePermissions, type Access, type Permission } from "./permissions";
 import { calculateDating } from "./pregnancy";
+import { UserError } from "./form";
 
 export type AppContext = {
   user: typeof schema.users.$inferSelect;
@@ -78,7 +79,7 @@ export async function audit(ctx: Pick<AppContext, "user" | "pregnancy">, action:
 /** For server actions: returns ctx or throws a user-safe error. */
 export async function actionContext(p?: Permission) {
   const ctx = await getContext();
-  if (!ctx) throw new Error("Please sign in again.");
-  if (p && !can(ctx.access, p)) throw new Error("You don't have permission to do that.");
+  if (!ctx) throw new UserError("Please sign in again.");
+  if (p && !can(ctx.access, p)) throw new UserError("You don't have permission to do that.");
   return ctx;
 }

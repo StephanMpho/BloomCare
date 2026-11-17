@@ -5,14 +5,14 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { actionContext, audit } from "@/lib/context";
 import { currentUser, destroySession, newToken, sha256, verifyPassword } from "@/lib/auth";
-import { safe, str, bool } from "@/lib/form";
+import { safe, UserError, str, bool } from "@/lib/form";
 import { sanitizePermissions } from "@/lib/permissions";
 import { validateLmp } from "@/lib/pregnancy";
 import type { ActionResult } from "@/components/forms";
 
 async function owner() {
   const ctx = await actionContext();
-  if (!ctx.isOwner) throw new Error("Only the account owner can change this.");
+  if (!ctx.isOwner) throw new UserError("Only the account owner can change this.");
   return ctx;
 }
 

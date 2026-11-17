@@ -5,7 +5,7 @@ import { and, eq, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { actionContext, audit } from "@/lib/context";
-import { safe, str, bool, intOrNull, numOrNull, isoDate, hhmm } from "@/lib/form";
+import { safe, UserError, str, bool, intOrNull, numOrNull, isoDate, hhmm } from "@/lib/form";
 import { sastInstant, todayISO } from "@/lib/dates";
 import { evaluateSymptoms } from "@/lib/safety";
 import { INITIAL_ALERT } from "@/lib/safety-status";
@@ -19,7 +19,7 @@ function refresh() {
 
 async function ownedFoodLog(id: string, pregnancyId: string) {
   const row = await db.query.foodLogs.findFirst({ where: and(eq(schema.foodLogs.id, id), eq(schema.foodLogs.pregnancyId, pregnancyId)) });
-  if (!row) throw new Error("That entry wasn't found.");
+  if (!row) throw new UserError("That entry wasn't found.");
   return row;
 }
 
@@ -116,7 +116,7 @@ export async function deleteDrinkLog(fd: FormData) {
 export async function saveSymptomLog(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return safe(async () => {
     const ctx = await actionContext();
-    if (!ctx.isOwner) throw new Error("Only she can record symptoms.");
+    if (!ctx.isOwner) throw new UserError("Only she can record symptoms.");
     const date = str(fd, "date") || todayISO();
     const time = str(fd, "time");
     hhmm.parse(time);
@@ -143,7 +143,7 @@ export async function saveSymptomLog(_: ActionResult, fd: FormData): Promise<Act
 export async function saveCheckIn(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return safe(async () => {
     const ctx = await actionContext();
-    if (!ctx.isOwner) throw new Error("Only she can complete the check-in.");
+    if (!ctx.isOwner) throw new UserError("Only she can complete the check-in.");
     const yn = (k: string) => (str(fd, k) === "yes" ? true : str(fd, k) === "no" ? false : null);
     await db.insert(schema.checkIns).values({
       pregnancyId: ctx.pregnancy.id, date: todayISO(), mood: intOrNull(fd, "mood"), nauseaSeverity: intOrNull(fd, "nauseaSeverity"),

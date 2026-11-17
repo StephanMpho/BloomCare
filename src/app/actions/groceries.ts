@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { actionContext } from "@/lib/context";
-import { safe, str, bool, numOrNull } from "@/lib/form";
+import { safe, UserError, str, bool, numOrNull } from "@/lib/form";
 import { parseRand } from "@/lib/money";
 import { todayISO } from "@/lib/dates";
 import type { ActionResult } from "@/components/forms";
@@ -30,7 +30,7 @@ export async function addGrocery(_: ActionResult, fd: FormData): Promise<ActionR
 
 async function owned(id: string, pid: string) {
   const r = await db.query.groceryItems.findFirst({ where: and(eq(schema.groceryItems.id, id), eq(schema.groceryItems.pregnancyId, pid)) });
-  if (!r) throw new Error("Item not found.");
+  if (!r) throw new UserError("Item not found.");
   return r;
 }
 
@@ -71,7 +71,7 @@ export async function deleteGrocery(fd: FormData) {
 export async function setBudget(_: ActionResult, fd: FormData): Promise<ActionResult> {
   return safe(async () => {
     const ctx = await actionContext();
-    if (!ctx.isOwner) throw new Error("Only she can change the budget.");
+    if (!ctx.isOwner) throw new UserError("Only she can change the budget.");
     const cents = parseRand(str(fd, "budget"));
     if (cents == null || cents < 0) return { error: "Enter an amount in rand." };
     await db.update(schema.pregnancies).set({ monthlyBudgetCents: cents }).where(eq(schema.pregnancies.id, ctx.pregnancy.id));
