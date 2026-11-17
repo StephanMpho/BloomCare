@@ -185,3 +185,38 @@ describe("action error handling", () => {
     errSpy.mockRestore();
   });
 });
+
+describe("photo check verdicts (rules only, never AI)", async () => {
+  const { judgeItem, judgeMeal } = await import("@/lib/photo-verdict");
+  const me = { allergies: "peanuts", nauseaTriggers: "boerewors, coffee", notTolerated: [{ name: "Chakalaka", bad: 2 }], tolerated: [{ name: "Pap", good: 5 }] };
+  const none = { allergies: "", nauseaTriggers: "", notTolerated: [], tolerated: [] };
+
+  it("uses the sourced food-safety library", () => {
+    expect(judgeItem({ name: "chicken livers" }, none).level).toBe("AVOID");
+    expect(judgeItem({ name: "polony" }, none).level).toBe("CAUTION");
+    expect(judgeItem({ name: "biltong" }, none).level).toBe("ASK");
+    const egg = judgeItem({ name: "boiled egg" }, none);
+    expect(egg.level).toBe("GOOD");
+    expect(egg.reasons[0].sources?.length).toBeGreaterThan(0);
+  });
+  it("matches whole words only ('ham' must not match 'graham crackers')", () => {
+    expect(judgeItem({ name: "graham crackers" }, none).level).toBe("UNKNOWN");
+  });
+  it("never calls an unknown food safe", () => {
+    const r = judgeItem({ name: "vetkoek" }, none);
+    expect(r.level).toBe("UNKNOWN");
+    expect(r.reasons[0].text).toMatch(/clinician/);
+  });
+  it("allergies make it AVOID even when the library says it's fine", () => {
+    expect(judgeItem({ name: "peanut butter on toast" }, me).level).toBe("AVOID");
+  });
+  it("her triggers and tolerance history add caution", () => {
+    expect(judgeItem({ name: "boerewors", preparation: "grilled" }, me).level).toBe("CAUTION");
+    expect(judgeItem({ name: "chakalaka" }, me).reasons.some((x) => x.kind === "tolerance")).toBe(true);
+    expect(judgeItem({ name: "pap" }, me).reasons.some((x) => /sits well/.test(x.text))).toBe(true);
+  });
+  it("the meal verdict is the worst item, and unknown outranks good", () => {
+    expect(judgeMeal([{ name: "boiled egg" }, { name: "liver" }], none).overall).toBe("AVOID");
+    expect(judgeMeal([{ name: "boiled egg" }, { name: "vetkoek" }], none).overall).toBe("UNKNOWN");
+  });
+});

@@ -27,7 +27,7 @@ export class UserError extends Error {}
  * Only UserError and Zod messages reach the user; anything else (DB errors, bugs) is logged
  * server-side and replaced with a generic message so SQL, params or stack details never leak.
  */
-export async function safe(fn: () => Promise<ActionResult>): Promise<ActionResult> {
+export async function safe<T = ActionResult>(fn: () => Promise<T>): Promise<T | { error: string }> {
   try {
     return await fn();
   } catch (e) {

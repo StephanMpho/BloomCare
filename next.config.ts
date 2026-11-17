@@ -10,6 +10,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Food photos are shrunk in the browser (~200–600 KB), but leave headroom over the 1 MB default.
+  experimental: { serverActions: { bodySizeLimit: "4mb" } },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

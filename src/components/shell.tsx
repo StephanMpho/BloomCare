@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {
-  Home, Utensils, CalendarDays, Frown, GlassWater, BookOpen, ShoppingBasket, Pill, Sprout, CalendarClock, BarChart3, Settings, Menu, HeartHandshake, LogOut,
+  Home, Utensils, CalendarDays, Frown, GlassWater, BookOpen, ShoppingBasket, Pill, Sprout, CalendarClock, BarChart3, Settings, Menu, HeartHandshake, LogOut, Camera,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { can, type Access, type Permission } from "@/lib/permissions";
@@ -12,6 +12,8 @@ export const NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: Home, group: "Today", ownerOnly: true },
   { href: "/partner", label: "Partner view", icon: HeartHandshake, group: "Today" },
   { href: "/food", label: "Food Diary", icon: Utensils, perm: "VIEW_MEALS", group: "Today" },
+  // No perm: photo-check results are always visible to an accepted partner (owner's choice).
+  { href: "/food/photo", label: "Photo Check", icon: Camera, group: "Today" },
   { href: "/symptoms", label: "Nausea & Symptoms", icon: Frown, perm: "VIEW_SYMPTOMS", group: "Today" },
   { href: "/hydration", label: "Hydration", icon: GlassWater, perm: "VIEW_HYDRATION", group: "Today" },
   { href: "/planner", label: "Meal Planner", icon: CalendarDays, perm: "MEAL_PLAN", group: "Plan" },

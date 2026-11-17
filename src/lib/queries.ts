@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, lt, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, isNull, isNotNull } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { addDays, dayBounds, monthKey, todayISO, toISODate } from "./dates";
 import { sumNutrients } from "./nutrition";
@@ -106,4 +106,18 @@ export function fluidTotals(drinks: { consumedMl: number; retention: string }[])
   const consumed = drinks.reduce((a, d) => a + d.consumedMl, 0);
   const kept = drinks.reduce((a, d) => a + (d.retention === "KEPT_DOWN" ? d.consumedMl : d.retention === "PARTLY" ? Math.round(d.consumedMl / 2) : 0), 0);
   return { consumed, kept, notKeptCount: drinks.filter((d) => d.retention === "NOT_KEPT_DOWN").length };
+}
+
+export async function recentPhotoChecks(pid: string, limit = 20) {
+  return db.select().from(schema.photoChecks).where(eq(schema.photoChecks.pregnancyId, pid))
+    .orderBy(desc(schema.photoChecks.createdAt)).limit(limit);
+}
+
+/** The accepted, non-revoked partner for a pregnancy, if any. */
+export async function activePartner(pid: string) {
+  const [row] = await db.select({ name: schema.users.name }).from(schema.partnerAccess)
+    .innerJoin(schema.users, eq(schema.users.id, schema.partnerAccess.partnerUserId))
+    .where(and(eq(schema.partnerAccess.pregnancyId, pid), isNotNull(schema.partnerAccess.acceptedAt), isNull(schema.partnerAccess.revokedAt)))
+    .limit(1);
+  return row ?? null;
 }

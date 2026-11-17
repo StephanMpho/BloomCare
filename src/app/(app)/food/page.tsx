@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Utensils, Pencil, Copy, Trash2, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Utensils, Pencil, Copy, Trash2, Plus, Camera } from "lucide-react";
 import { requirePermission } from "@/lib/context";
 import { can } from "@/lib/permissions";
 import { addDays, formatDate, formatTime, todayISO } from "@/lib/dates";
@@ -23,7 +23,12 @@ export default async function FoodDiary({ searchParams }: { searchParams: Promis
   return (
     <div className="space-y-6">
       <PageHeader title="Food Diary" subtitle="Everything logged, in order. No targets to hit — just a gentle record."
-        action={canEdit && <LinkButton href="/food/new" variant="rose"><Plus size={18} /> Log food</LinkButton>} />
+        action={canEdit && (
+          <div className="flex gap-2">
+            <LinkButton href="/food/photo" variant="outline"><Camera size={18} /> Photo check</LinkButton>
+            <LinkButton href="/food/new" variant="rose"><Plus size={18} /> Log food</LinkButton>
+          </div>
+        )} />
       {sp.saved && <p className="rounded-2xl bg-sage/40 p-3 text-sm">Saved. Well done for eating something. 💚</p>}
 
       <div className="flex items-center justify-between rounded-3xl bg-white p-2 shadow-soft dark:bg-night-card">

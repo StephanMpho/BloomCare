@@ -3,8 +3,9 @@
 // Partners only reach records through an active (accepted, non-revoked) partner_access row.
 import { sql } from "drizzle-orm";
 import {
-  pgTable, pgEnum, text, integer, boolean, timestamp, date, real, index, uniqueIndex,
+  pgTable, pgEnum, text, integer, boolean, timestamp, date, real, index, uniqueIndex, jsonb,
 } from "drizzle-orm/pg-core";
+import type { JudgedItem, VerdictLevel } from "../lib/photo-verdict";
 
 const id = () => text("id").primaryKey().$defaultFn(() => crypto.randomUUID());
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -307,6 +308,18 @@ export const safetyAcknowledgements = pgTable("medical_safety_acknowledgements",
   displayedAt: timestamp("displayed_at", { withTimezone: true }).notNull().defaultNow(),
   acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
 }, (t) => [index("ack_preg_type_idx").on(t.pregnancyId, t.alertType)]);
+
+// Result of a food-photo check. The photo itself is never stored: only the confirmed
+// food names and the rule-based verdict. Visible to an accepted partner regardless of
+// share settings (she is told this on the camera screen before each check).
+export const photoChecks = pgTable("photo_checks", {
+  id: id(),
+  pregnancyId: text("pregnancy_id").notNull().references(() => pregnancies.id, { onDelete: "cascade" }),
+  checkedById: text("checked_by_id").notNull(), // no FK (like food_logs.logged_by_id): her records survive a partner deleting their account
+  overall: text("overall").$type<VerdictLevel>().notNull(),
+  items: jsonb("items").$type<JudgedItem[]>().notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("photo_checks_preg_time_idx").on(t.pregnancyId, t.createdAt)]);
 
 export const auditLogs = pgTable("audit_logs", {
   id: id(),

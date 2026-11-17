@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { HeartHandshake, Utensils, Leaf, ShoppingBasket, CalendarClock, Sprout, Check, Lightbulb, MessageCircleHeart } from "lucide-react";
+import { HeartHandshake, Utensils, Leaf, ShoppingBasket, CalendarClock, Sprout, Check, Lightbulb, MessageCircleHeart, Camera } from "lucide-react";
 import { requireContext, audit } from "@/lib/context";
 import { can } from "@/lib/permissions";
 import { addDays, formatDate, formatDateTime, formatTime, todayISO } from "@/lib/dates";
-import { foodLogsForRange, groceriesForMonth, nextAppointment, openSupportRequests, planForDay, toleranceLists } from "@/lib/queries";
+import { foodLogsForRange, groceriesForMonth, nextAppointment, openSupportRequests, planForDay, recentPhotoChecks, toleranceLists } from "@/lib/queries";
+import { OverallVerdict, VerdictList } from "@/components/photo-verdict-view";
 import { MEAL_LABEL } from "@/lib/meal-templates";
 import { Card, CardTitle, PageHeader, Badge, Empty, Note } from "@/components/ui";
 import { InlineAction } from "@/components/forms";
@@ -39,6 +40,8 @@ export default async function PartnerDashboard({ searchParams }: { searchParams:
     can(a, "APPOINTMENTS") ? nextAppointment(pid) : Promise.resolve(undefined),
     can(a, "SUPPORT_REQUESTS") ? openSupportRequests(pid) : Promise.resolve([]),
   ]);
+  // Always shown to an accepted partner (owner's choice; she's told before each check).
+  const [lastPhoto] = await recentPhotoChecks(pid, 1);
   await audit(ctx, "partner.view_dashboard");
   const toBuy = groceries.filter((g) => !g.purchased && !g.inPantry);
   const name = ctx.pregnancy.preferredName;
@@ -70,6 +73,18 @@ export default async function PartnerDashboard({ searchParams }: { searchParams:
           </Card>
         )}
       </div>
+
+      {lastPhoto && (
+        <Card>
+          <CardTitle icon={<Camera size={18} />} action={<Link href="/food/photo" className="text-sm underline">All photo checks</Link>}>
+            Latest photo check · {formatDateTime(lastPhoto.createdAt)}
+          </CardTitle>
+          <div className="space-y-3">
+            <OverallVerdict level={lastPhoto.overall} />
+            <VerdictList items={lastPhoto.items} canLog={can(a, "LOG_FOR_ME")} />
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {can(a, "VIEW_MEALS") && (

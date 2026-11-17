@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ kind: st
     const pid = ctx.pregnancy.id;
     const tables = { foodLogs: schema.foodLogs, drinkLogs: schema.drinkLogs, symptomLogs: schema.symptomLogs, checkIns: schema.checkIns, mealPlan: schema.mealPlanEntries,
       savedMeals: schema.savedMeals, groceries: schema.groceryItems, supplements: schema.supplements, appointments: schema.appointments, journal: schema.journalEntries,
-      supportRequests: schema.supportRequests, reminders: schema.reminders, partnerAccess: schema.partnerAccess, safetyAcknowledgements: schema.safetyAcknowledgements, auditLog: schema.auditLogs } as const;
+      supportRequests: schema.supportRequests, reminders: schema.reminders, partnerAccess: schema.partnerAccess, safetyAcknowledgements: schema.safetyAcknowledgements, photoChecks: schema.photoChecks, auditLog: schema.auditLogs } as const;
     const out: Record<string, unknown> = { exportedAt: new Date().toISOString(), user: { name: ctx.user.name, email: ctx.user.email }, pregnancy: ctx.pregnancy };
     for (const [k, t] of Object.entries(tables)) out[k] = await db.select().from(t).where(eq((t as typeof schema.foodLogs).pregnancyId, pid));
     (out.partnerAccess as { inviteTokenHash?: string }[]).forEach((p) => delete p.inviteTokenHash);
