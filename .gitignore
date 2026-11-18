@@ -45,3 +45,6 @@ playwright-report/
 
 # Supabase SSL root certificate (downloaded from the dashboard)
 supabase-ca.crt
+
+.vercel
+.env*

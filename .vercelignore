@@ -1,0 +1,10 @@
+# Never upload local secrets or build/test output when deploying from this machine.
+.env
+.env.*
+!.env.example
+supabase-ca.crt
+node_modules
+.next
+test-results
+playwright-report
+tsconfig.tsbuildinfo
