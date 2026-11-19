@@ -1,29 +1,33 @@
 import Link from "next/link";
 import {
-  Home, Utensils, CalendarDays, Frown, GlassWater, BookOpen, ShoppingBasket, Pill, Sprout, CalendarClock, BarChart3, Settings, Menu, HeartHandshake, LogOut, Camera,
+  Home, Utensils, CalendarDays, Frown, GlassWater, BookOpen, ShoppingBasket, Pill, Sprout, CalendarClock, BarChart3, Settings, Menu, HeartHandshake, LogOut, Camera, ClipboardCheck, ListChecks,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { can, type Access, type Permission } from "@/lib/permissions";
 import { ThemeToggle, QuickLog } from "./client-bits";
 
-type NavItem = { href: string; label: string; icon: typeof Home; perm?: Permission; ownerOnly?: boolean; group: string };
+type NavItem = { href: string; label: string; short?: string; icon: typeof Home; perm?: Permission; ownerOnly?: boolean; main?: boolean };
 
+// The four main tabs (plus "More"): what matters most day to day. Everything else lives under More.
 export const NAV: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: Home, group: "Today", ownerOnly: true },
-  { href: "/partner", label: "Partner view", icon: HeartHandshake, group: "Today" },
-  { href: "/food", label: "Food Diary", icon: Utensils, perm: "VIEW_MEALS", group: "Today" },
+  { href: "/", label: "Today", icon: Home, ownerOnly: true, main: true },
+  { href: "/partner", label: "Home", icon: HeartHandshake, main: true },
+  { href: "/food", label: "Food", icon: Utensils, perm: "VIEW_MEALS", main: true },
+  { href: "/planner", label: "Plan & Shop", short: "Plan", icon: CalendarDays, perm: "MEAL_PLAN", main: true },
+  { href: "/appointments", label: "Appointments", short: "Appts", icon: CalendarClock, perm: "APPOINTMENTS", main: true },
+  // More
+  { href: "/check-in", label: "How I feel today", icon: ClipboardCheck, ownerOnly: true },
   // No perm: photo-check results are always visible to an accepted partner (owner's choice).
-  { href: "/food/photo", label: "Photo Check", icon: Camera, group: "Today" },
-  { href: "/symptoms", label: "Nausea & Symptoms", icon: Frown, perm: "VIEW_SYMPTOMS", group: "Today" },
-  { href: "/hydration", label: "Hydration", icon: GlassWater, perm: "VIEW_HYDRATION", group: "Today" },
-  { href: "/planner", label: "Meal Planner", icon: CalendarDays, perm: "MEAL_PLAN", group: "Plan" },
-  { href: "/groceries", label: "Grocery Budget", icon: ShoppingBasket, perm: "GROCERIES", group: "Plan" },
-  { href: "/supplements", label: "Supplements", icon: Pill, perm: "VIEW_SUPPLEMENTS", group: "Plan" },
-  { href: "/appointments", label: "Appointments", icon: CalendarClock, perm: "APPOINTMENTS", group: "Plan" },
-  { href: "/guide", label: "Nutrition & Food Safety", icon: BookOpen, group: "Learn" },
-  { href: "/journey", label: "Pregnancy Journey", icon: Sprout, perm: "VIEW_JOURNEY", group: "Learn" },
-  { href: "/reports", label: "Reports", icon: BarChart3, ownerOnly: true, group: "Learn" },
-  { href: "/settings", label: "Settings", icon: Settings, group: "Account" },
+  { href: "/food/photo", label: "Photo food check", icon: Camera },
+  { href: "/symptoms", label: "Nausea & symptoms", icon: Frown, perm: "VIEW_SYMPTOMS" },
+  { href: "/hydration", label: "Drinks", icon: GlassWater, perm: "VIEW_HYDRATION" },
+  { href: "/groceries", label: "Shopping list & budget", icon: ShoppingBasket, perm: "GROCERIES" },
+  { href: "/planner/foods", label: "Her food list", icon: ListChecks },
+  { href: "/supplements", label: "Supplements", icon: Pill, perm: "VIEW_SUPPLEMENTS" },
+  { href: "/journey", label: "Pregnancy journey", icon: Sprout, perm: "VIEW_JOURNEY" },
+  { href: "/guide", label: "Food safety guide", icon: BookOpen },
+  { href: "/reports", label: "Reports", icon: BarChart3, ownerOnly: true },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function visibleNav(access: Access) {
@@ -36,11 +40,8 @@ export function visibleNav(access: Access) {
 
 export function Shell({ access, name, children, banner }: { access: Access; name: string; children: ReactNode; banner?: ReactNode }) {
   const items = visibleNav(access);
-  const groups = [...new Set(items.map((i) => i.group))];
+  const main = items.filter((i) => i.main);
   const isOwner = access.role === "OWNER";
-  const bottom = isOwner
-    ? [items.find((i) => i.href === "/")!, items.find((i) => i.href === "/food")!, items.find((i) => i.href === "/symptoms")!, items.find((i) => i.href === "/planner")!]
-    : items.filter((i) => i.href !== "/settings").slice(0, 4);
   const canLog = isOwner || can(access, "LOG_FOR_ME");
   return (
     <div className="min-h-dvh md:flex">
@@ -49,16 +50,11 @@ export function Shell({ access, name, children, banner }: { access: Access; name
           <div className="font-display text-2xl font-semibold">Bloom<span className="text-rose">Care</span></div>
           <div className="text-xs text-muted dark:text-white/60">Nourishing you, caring for your little one.</div>
         </Link>
-        <nav className="flex-1 space-y-5 overflow-y-auto" aria-label="Main">
-          {groups.map((g) => (
-            <div key={g}>
-              <div className="mb-1 px-3 text-[11px] font-bold uppercase tracking-widest text-muted/80 dark:text-white/40">{g}</div>
-              {items.filter((i) => i.group === g).map((i) => (
-                <Link key={i.href} href={i.href} className="flex min-h-11 items-center gap-3 rounded-2xl px-3 text-[15px] font-medium hover:bg-blush/60 dark:hover:bg-night-line">
-                  <i.icon size={19} className="text-rose/90 dark:text-blush-deep" /> {i.label}
-                </Link>
-              ))}
-            </div>
+        <nav className="flex-1 space-y-1 overflow-y-auto" aria-label="Main">
+          {[...main, { href: "/more", label: "More", icon: Menu }].map((i) => (
+            <Link key={i.href} href={i.href} className="flex min-h-12 items-center gap-3 rounded-2xl px-3 text-base font-semibold hover:bg-blush/60 dark:hover:bg-night-line">
+              <i.icon size={21} className="text-rose/90 dark:text-blush-deep" /> {i.label}
+            </Link>
           ))}
         </nav>
         <div className="mt-4 flex items-center justify-between border-t border-line pt-4 dark:border-night-line">
@@ -79,9 +75,9 @@ export function Shell({ access, name, children, banner }: { access: Access; name
       </div>
 
       <nav aria-label="Quick navigation" className="no-print fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-night-line dark:bg-night-card/95">
-        {bottom.filter(Boolean).map((i) => (
+        {main.slice(0, 4).map((i) => (
           <Link key={i.href} href={i.href} className="flex min-h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold">
-            <i.icon size={22} className="text-rose dark:text-blush-deep" /> {i.label.split(" ")[0]}
+            <i.icon size={22} className="text-rose dark:text-blush-deep" /> {i.short ?? i.label}
           </Link>
         ))}
         <Link href="/more" className="flex min-h-16 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold">

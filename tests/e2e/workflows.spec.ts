@@ -2,6 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 
 const stamp = Date.now();
 const owner = { name: "Naledi", email: `owner${stamp}@example.com`, password: "correct-horse-1" };
+// The monthly plan is made for next month, so shopping lists live there.
+const nextMonth = (() => { const d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)).toISOString().slice(0, 7); })();
 const partner = { name: "Mpho", email: `partner${stamp}@example.com`, password: "correct-horse-2" };
 
 async function register(page: Page, u: typeof owner, next = "") {
@@ -42,7 +44,7 @@ test.describe.serial("BloomCare critical workflows", () => {
     await expect(page.getByText("Medical safety notice").first()).toBeVisible();
   });
 
-  test("Workflow A: log breakfast and dashboard updates", async () => {
+  test("Workflow A: log breakfast; simple Today screen and 5-tab navigation", async () => {
     await page.goto("/food/new");
     await page.getByLabel("Search foods").fill("oats");
     await page.getByRole("button", { name: /Oats, cooked with water/ }).click();
@@ -53,7 +55,10 @@ test.describe.serial("BloomCare critical workflows", () => {
     await page.waitForURL("**/food?date=*");
     await expect(page.getByText("Oats, cooked with water").first()).toBeVisible();
     await page.goto("/");
-    await expect(page.getByText("Meals logged").locator("..")).toContainText("1");
+    await expect(page.getByText("How are you feeling today?")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Photo of food" })).toBeVisible();
+    const tabs = page.getByRole("navigation", { name: "Quick navigation" }).getByRole("link");
+    await expect(tabs).toHaveText(["Today", "Food", "Plan", "Appts", "More"]);
   });
 
   test("Workflow B: record vomiting triggers safety guidance", async () => {
@@ -65,20 +70,24 @@ test.describe.serial("BloomCare critical workflows", () => {
     await expect(page.getByText("Unable to keep fluids down").first()).toBeVisible();
   });
 
-  test("Workflow C: weekly meal plan → grocery list", async () => {
+  test("Workflow C: monthly meal plan → weekly shopping lists", async () => {
     await page.goto("/planner");
-    await page.getByRole("button", { name: /Suggest a week/ }).click();
+    await page.getByRole("button", { name: /^Create .+ plan$/ }).last().click();
+    await page.waitForURL("**/planner?*made=*");
+    await expect(page.getByText(/plan ready: \d+ meals and snacks, with [45] weekly shopping lists/)).toBeVisible();
     await expect(page.getByRole("button", { name: /Swap/ }).first()).toBeVisible();
     await page.getByRole("button", { name: "Not tolerated" }).first().click();
     await expect(page.getByText("Not tolerated").first()).toBeVisible();
     await page.getByRole("button", { name: /Swap/ }).nth(1).click();
-    await page.getByRole("button", { name: /Make grocery list/ }).click();
-    await page.waitForURL("**/groceries?*generated=1");
-    await expect(page.getByText("Grocery list created from the meal plan")).toBeVisible();
+    await page.goto(`/groceries?month=${nextMonth}`);
+    await expect(page.getByRole("heading", { name: /^Shop 1 · / })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Shop 4 · / })).toBeVisible();
+    await page.goto("/planner/foods");
+    await expect(page.getByRole("heading", { name: "Avoid in pregnancy" })).toBeVisible();
   });
 
   test("Workflow D: shopping updates remaining budget", async () => {
-    await page.goto("/groceries");
+    await page.goto(`/groceries?month=${nextMonth}`);
     const before = await page.getByText("Remaining", { exact: true }).locator("..").textContent();
     await page.getByText("Enter actual price / store").first().click();
     await page.getByLabel("Actual price (R)").first().fill("123.45");

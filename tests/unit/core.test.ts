@@ -264,3 +264,46 @@ describe("photo check: healthy-for-pregnancy guidance by food group", async () =
     }
   });
 });
+
+describe("monthly meal plan (December)", async () => {
+  const { buildRangePlan, shoppingTrips, shoppingListForPlan, PLAN_SLOTS } = await import("@/lib/month-plan");
+  const { templateByKey } = await import("@/lib/meal-templates");
+  const plan = buildRangePlan({ start: "2026-12-01", end: "2026-12-31", avoid: [], prefer: [], gentle: false });
+
+  it("covers every day of December with 3 meals and 2 snacks", () => {
+    expect(new Set(plan.map((p) => p.date)).size).toBe(31);
+    expect(plan.length).toBe(31 * PLAN_SLOTS.length);
+    expect(plan.some((p) => p.slot === "EVENING_SNACK")).toBe(false);
+  });
+  it("adds variety: no slot repeats yesterday's meal, lunch differs from supper", () => {
+    for (const p of plan) {
+      const y = plan.find((q) => q.slot === p.slot && q.date === new Date(Date.parse(p.date) - 864e5).toISOString().slice(0, 10));
+      if (y) expect(y.key).not.toBe(p.key);
+    }
+    for (const d of new Set(plan.map((p) => p.date))) {
+      const l = plan.find((p) => p.date === d && p.slot === "LUNCH"), s = plan.find((p) => p.date === d && p.slot === "SUPPER");
+      expect(l?.key).not.toBe(s?.key);
+    }
+  });
+  it("never plans foods she didn't tolerate", () => {
+    const p = buildRangePlan({ start: "2026-12-01", end: "2026-12-31", avoid: ["pilchards", "chicken"], prefer: [], gentle: false });
+    expect(p.some((x) => /pilchard|chicken/i.test(templateByKey(x.key)!.title))).toBe(false);
+  });
+  it("leaves meals she already marked alone", () => {
+    const p = buildRangePlan({ start: "2026-12-01", end: "2026-12-02", avoid: [], prefer: [], gentle: false, keep: [{ date: "2026-12-01", slot: "BREAKFAST" }] });
+    expect(p.some((x) => x.date === "2026-12-01" && x.slot === "BREAKFAST")).toBe(false);
+    expect(p.length).toBe(2 * PLAN_SLOTS.length - 1);
+  });
+  it("shops weekly: 1, 8, 15, 22 and 29 December", () => {
+    const trips = shoppingTrips("2026-12-01", "2026-12-31");
+    expect(trips.map((t) => t.date)).toEqual(["2026-12-01", "2026-12-08", "2026-12-15", "2026-12-22", "2026-12-29"]);
+    expect(trips.at(-1)!.to).toBe("2026-12-31");
+  });
+  it("long-lasting items go on the first trip only; fresh items each week", () => {
+    const trips = shoppingTrips("2026-12-01", "2026-12-31");
+    const list = shoppingListForPlan(plan, trips);
+    const maize = list.filter((i) => i.item === "maize");
+    expect(maize.every((i) => i.shopDate === "2026-12-01")).toBe(true);
+    expect(new Set(list.filter((i) => i.item === "bananas").map((i) => i.shopDate)).size).toBeGreaterThan(1);
+  });
+});

@@ -224,6 +224,7 @@ export const groceryItems = pgTable("grocery_items", {
   expiryDate: date("expiry_date"),
   inPantry: boolean("in_pantry").notNull().default(false),
   fromMealPlan: boolean("from_meal_plan").notNull().default(false),
+  shopDate: date("shop_date"), // which weekly shopping trip this belongs to (monthly plans); null = no specific trip
   notes: text("notes").notNull().default(""),
   createdAt: createdAt(),
 }, (t) => [index("grocery_preg_month_idx").on(t.pregnancyId, t.month)]);

@@ -7,31 +7,17 @@ import { db, schema } from "@/db";
 import { actionContext } from "@/lib/context";
 import { safe, UserError, str, isoDate } from "@/lib/form";
 import { addDays, monthKey, sastInstant, todayISO, nowHHMM } from "@/lib/dates";
-import { chooseTemplates, templateByKey, aggregateIngredients, SLOTS, type Slot } from "@/lib/meal-templates";
+import { chooseTemplates, aggregateIngredients, SLOTS, type Slot } from "@/lib/meal-templates";
 import { parseRand } from "@/lib/money";
 import type { ActionResult } from "@/components/forms";
-
-async function toleranceLists(pregnancyId: string, p: { toleratedAtStart: string; nauseaTriggers: string }) {
-  const logs = await db.select({ name: schema.foodLogs.foodName, tol: schema.foodLogs.tolerance, vom: schema.foodLogs.vomitedAfter })
-    .from(schema.foodLogs).where(eq(schema.foodLogs.pregnancyId, pregnancyId));
-  const plans = await db.select({ title: schema.mealPlanEntries.title, status: schema.mealPlanEntries.status })
-    .from(schema.mealPlanEntries).where(and(eq(schema.mealPlanEntries.pregnancyId, pregnancyId), eq(schema.mealPlanEntries.status, "NOT_TOLERATED")));
-  const avoid = [...logs.filter((l) => l.tol === "POOR" || l.vom).map((l) => l.name), ...plans.map((p) => p.title), ...p.nauseaTriggers.split(",")];
-  const prefer = [...logs.filter((l) => l.tol === "GOOD" && !l.vom).map((l) => l.name), ...p.toleratedAtStart.split(",")];
-  return { avoid: avoid.map((s) => s.trim()).filter(Boolean), prefer: prefer.map((s) => s.trim()).filter(Boolean) };
-}
-
-function entryFromTemplate(pregnancyId: string, date: string, slot: Slot, key: string) {
-  const t = templateByKey(key)!;
-  return { pregnancyId, date, mealType: slot, templateKey: t.key, title: t.title, portion: t.portion, preparation: t.preparation,
-    nutrients: t.nutrients, alternative: t.alternative, safetyNote: t.safetyNote ?? "", estCostCents: t.estCostCents };
-}
+import { createRangePlan, entryFromTemplate, planAvoidPrefer } from "@/lib/plan-server";
+import { daysBetween } from "@/lib/dates";
 
 export async function generateWeek(fd: FormData) {
   const ctx = await actionContext("MEAL_PLAN");
   const start = isoDate.parse(str(fd, "weekStart"));
   const gentle = str(fd, "gentle") === "1";
-  const { avoid, prefer } = await toleranceLists(ctx.pregnancy.id, ctx.pregnancy);
+  const { avoid, prefer } = await planAvoidPrefer(ctx.pregnancy);
   // Replace only entries that are still just "planned" — keep anything she's already marked.
   await db.delete(schema.mealPlanEntries).where(and(eq(schema.mealPlanEntries.pregnancyId, ctx.pregnancy.id),
     gte(schema.mealPlanEntries.date, start), lt(schema.mealPlanEntries.date, addDays(start, 7)), eq(schema.mealPlanEntries.status, "PLANNED")));
@@ -43,7 +29,7 @@ export async function generateWeek(fd: FormData) {
     for (const slot of SLOTS) {
       if (kept.some((k) => k.date === date && k.mealType === slot)) continue;
       const opts = chooseTemplates({ slot, avoid, prefer, gentleOnly: gentle, dayIndex: d });
-      if (opts[0]) rows.push(entryFromTemplate(ctx.pregnancy.id, date, slot, opts[0].key));
+      if (opts[0]) rows.push(entryFromTemplate(ctx.pregnancy.id, { date, slot, key: opts[0].key }));
     }
   }
   if (rows.length) await db.insert(schema.mealPlanEntries).values(rows);
@@ -60,11 +46,11 @@ async function ownedEntry(id: string, pregnancyId: string) {
 export async function swapMeal(fd: FormData) {
   const ctx = await actionContext("MEAL_PLAN");
   const e = await ownedEntry(str(fd, "id"), ctx.pregnancy.id);
-  const { avoid, prefer } = await toleranceLists(ctx.pregnancy.id, ctx.pregnancy);
+  const { avoid, prefer } = await planAvoidPrefer(ctx.pregnancy);
   const opts = chooseTemplates({ slot: e.mealType as Slot, avoid, prefer, gentleOnly: false, dayIndex: Math.floor(Math.random() * 7), exclude: e.templateKey ? [e.templateKey] : [] });
   const next = opts.find((o) => o.key !== e.templateKey);
   if (next) {
-    const { pregnancyId: _p, date: _d, mealType: _m, ...v } = entryFromTemplate(ctx.pregnancy.id, e.date, e.mealType as Slot, next.key);
+    const { pregnancyId: _p, date: _d, mealType: _m, ...v } = entryFromTemplate(ctx.pregnancy.id, { date: e.date, slot: e.mealType as Slot, key: next.key });
     await db.update(schema.mealPlanEntries).set({ ...v, status: "PLANNED" }).where(eq(schema.mealPlanEntries.id, e.id));
   }
   revalidatePath("/planner");
@@ -147,4 +133,16 @@ export async function planToGroceries(fd: FormData) {
   }
   revalidatePath("/groceries");
   redirect(`/groceries?month=${month}&generated=1`);
+}
+
+/** Plan a whole range (e.g. 1–31 December): 3 meals + 2 snacks a day, plus weekly shopping lists. */
+export async function planMonth(fd: FormData) {
+  const ctx = await actionContext("MEAL_PLAN");
+  const start = isoDate.parse(str(fd, "start"));
+  const end = isoDate.parse(str(fd, "end"));
+  const span = daysBetween(start, end);
+  if (span < 0 || span > 62) throw new UserError("Please choose a plan of up to two months.");
+  await createRangePlan(ctx.pregnancy, { start, end, gentle: str(fd, "gentle") === "1" });
+  for (const p of ["/planner", "/groceries", "/"]) revalidatePath(p);
+  redirect(`/planner?week=${start}&made=${start.slice(0, 7)}`);
 }
