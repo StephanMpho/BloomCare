@@ -3,6 +3,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { UserError } from "./form";
+import { FOOD_GROUPS, FOOD_GROUP_KEYS } from "./content/food-groups";
+
+const GROUP_GUIDE = FOOD_GROUP_KEYS.map((k) => `${k} (${FOOD_GROUPS[k].examples})`).join("; ");
 
 // Claude's only job here is RECOGNITION: which foods are in the photo and how they look
 // prepared. It must not judge safety or health; BloomCare's sourced rules do that
@@ -13,6 +16,7 @@ export const IdentifiedFoods = z.object({
   items: z.array(z.object({
     name: z.string().describe("Plain, generic food name as commonly said in South Africa, e.g. 'pap', 'boerewors', 'chakalaka', 'fried egg', 'polony'."),
     preparation: z.string().describe("Visible preparation only, e.g. 'fried', 'boiled', 'raw', 'yolk looks runny', 'meat looks pink inside'. Empty string if unclear."),
+    group: z.enum(FOOD_GROUP_KEYS).describe(`Which food group this item belongs to. Groups: ${GROUP_GUIDE}`),
     confidence: z.enum(["high", "medium", "low"]),
   })).max(12),
   note: z.string().describe("One short sentence if the photo is unclear or something important can't be seen. Otherwise empty string."),
@@ -22,6 +26,8 @@ export type IdentifiedFoods = z.infer<typeof IdentifiedFoods>;
 const SYSTEM = `You identify foods and drinks in photos for a South African pregnancy food diary.
 
 List each distinct food or drink you can see, using plain generic names a South African would use (for example "pap", "samp and beans", "vetkoek", "boerewors", "chakalaka", "polony", "Rooibos tea"). Describe only preparation you can actually see, such as fried, boiled, raw, a runny yolk or pink meat, because the app uses this to apply food-safety rules. Don't guess hidden ingredients or brands.
+
+Also put each item in the single food group that fits it best. Use "mixed-dish" only when separate ingredients can't be told apart, and "other" when nothing fits.
 
 Do not give any health, nutrition or safety opinion. Another part of the app does that from a reviewed library. If the image isn't food, set containsFood to false and return no items.`;
 

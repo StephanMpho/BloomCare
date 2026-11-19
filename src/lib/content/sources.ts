@@ -10,6 +10,7 @@ export const SOURCES = {
   nhsNVP: { title: "NHS — Vomiting and morning sickness", url: "https://www.nhs.uk/pregnancy/related-conditions/common-symptoms/vomiting-and-morning-sickness/" },
   nhsEctopic: { title: "NHS — Ectopic pregnancy", url: "https://www.nhs.uk/conditions/ectopic-pregnancy/" },
   nhsFoods: { title: "NHS — Foods to avoid in pregnancy", url: "https://www.nhs.uk/pregnancy/keeping-well/foods-to-avoid/" },
+  nhsHealthyDiet: { title: "NHS — Have a healthy diet in pregnancy", url: "https://www.nhs.uk/pregnancy/keeping-well/have-a-healthy-diet/" },
   nhsVitamins: { title: "NHS — Vitamins, supplements and nutrition in pregnancy", url: "https://www.nhs.uk/pregnancy/keeping-well/vitamins-supplements-and-nutrition/" },
   rcogGTG69: { title: "RCOG Green-top Guideline 69 — Nausea and vomiting of pregnancy and hyperemesis gravidarum", url: "https://www.rcog.org.uk/guidance/browse-all-guidance/green-top-guidelines/the-management-of-nausea-and-vomiting-of-pregnancy-and-hyperemesis-gravidarum-green-top-guideline-no-69/" },
   whoANC: { title: "WHO — Recommendations on antenatal care for a positive pregnancy experience (2016)", url: "https://www.who.int/publications/i/item/9789241549912" },

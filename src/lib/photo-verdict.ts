@@ -1,7 +1,10 @@
 // Turns food names identified from a photo into a verdict using ONLY BloomCare's
-// curated, sourced rules: the food-safety library, her allergies and nausea triggers,
-// and her own tolerance history. The AI never decides whether a food is safe.
+// curated, sourced rules: the food-safety library, the food-group healthy-eating guidance,
+// her allergies and nausea triggers, and her own tolerance history.
+// The AI only recognises foods and sorts them into a fixed food group; it never decides
+// whether a food is safe or healthy.
 import { FOOD_SAFETY, type FoodSafetyEntry, type SafetyCategory } from "./content/food-safety";
+import { FOOD_GROUPS, HEALTHINESS_LABEL, type FoodGroupKey, type Healthiness } from "./content/food-groups";
 import type { SourceId } from "./content/sources";
 
 export type VerdictLevel = "GOOD" | "CAUTION" | "AVOID" | "ASK" | "UNKNOWN";
@@ -26,12 +29,19 @@ const FROM_CATEGORY: Record<SafetyCategory, VerdictLevel> = {
 
 export type VerdictReason = { text: string; kind: "safety" | "allergy" | "trigger" | "tolerance"; sources?: SourceId[]; guideKey?: string };
 
+export type HealthinessVerdict = { level: Healthiness; label: string; group: string; why: string; tip?: string; sources: SourceId[] };
+
 export type JudgedItem = {
   name: string;
   preparation: string;
   level: VerdictLevel;
   reasons: VerdictReason[];
+  // Added Nov 2026; older saved checks don't have these.
+  group?: FoodGroupKey;
+  healthiness?: HealthinessVerdict | null;
 };
+
+const FROM_HEALTHINESS: Record<Healthiness, VerdictLevel> = { GREAT: "GOOD", GOOD: "GOOD", LIMIT: "CAUTION", AVOID: "AVOID" };
 
 export type PersonalContext = {
   allergies: string;        // free text, comma/line separated
@@ -72,17 +82,32 @@ export function worst(levels: VerdictLevel[]): VerdictLevel {
   return levels.reduce<VerdictLevel>((w, l) => (SEVERITY[l] < SEVERITY[w] ? l : w), "GOOD");
 }
 
-export function judgeItem(item: { name: string; preparation?: string }, me: PersonalContext): JudgedItem {
+/** Healthy-eating guidance for a food group. "other"/unknown groups get none. */
+export function healthinessFor(group: FoodGroupKey | undefined): HealthinessVerdict | null {
+  if (!group || group === "other") return null;
+  const g = FOOD_GROUPS[group];
+  if (!g) return null;
+  return { level: g.healthiness, label: HEALTHINESS_LABEL[g.healthiness], group: g.label, why: g.why, tip: g.tip, sources: g.sources };
+}
+
+export function judgeItem(item: { name: string; preparation?: string; group?: FoodGroupKey }, me: PersonalContext): JudgedItem {
   const label = `${item.name} ${item.preparation ?? ""}`;
   const reasons: VerdictReason[] = [];
   const levels: VerdictLevel[] = [];
+  let allergic = false;
 
   for (const a of splitList(me.allergies)) {
     if (mentions(label, a)) {
+      allergic = true;
       levels.push("AVOID");
       reasons.push({ kind: "allergy", text: `Listed in her allergies ("${a}"). Don't eat it unless her clinician has said it's fine.` });
     }
   }
+
+  // General healthy-eating guidance for the food's group. Suppressed for allergens so
+  // "Great choice" never appears next to an allergy warning.
+  const healthiness = allergic ? null : healthinessFor(item.group);
+  if (healthiness) levels.push(FROM_HEALTHINESS[healthiness.level]);
 
   const entries = safetyEntriesFor(item.name);
   for (const e of entries) {
@@ -106,15 +131,16 @@ export function judgeItem(item: { name: string; preparation?: string }, me: Pers
     if (good) reasons.push({ kind: "tolerance", text: `Usually sits well with her (logged ${good.good} time${good.good === 1 ? "" : "s"}).` });
   }
 
-  if (entries.length === 0 && !levels.includes("AVOID")) {
+  // Only truly unknown when neither the safety library nor a food group covers it.
+  if (entries.length === 0 && !healthiness && !allergic) {
     levels.push("UNKNOWN");
-    reasons.push({ kind: "safety", text: "This food isn't in BloomCare's food-safety library, so we can't give a verdict. General rule: well-cooked, freshly prepared, pasteurised foods are usually fine. If you're unsure, ask her clinician." });
+    reasons.push({ kind: "safety", text: "We couldn't match this food to BloomCare's guidance, so we can't say whether it's a healthy choice. General rule: well-cooked, freshly prepared, pasteurised foods are usually fine. If you're unsure, ask her clinician." });
   }
 
-  return { name: item.name, preparation: item.preparation ?? "", level: worst(levels), reasons };
+  return { name: item.name, preparation: item.preparation ?? "", group: item.group, healthiness, level: worst(levels), reasons };
 }
 
-export function judgeMeal(items: { name: string; preparation?: string }[], me: PersonalContext) {
+export function judgeMeal(items: { name: string; preparation?: string; group?: FoodGroupKey }[], me: PersonalContext) {
   const judged = items.map((i) => judgeItem(i, me));
   return { items: judged, overall: worst(judged.map((j) => j.level)) };
 }

@@ -2,7 +2,10 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Camera, ImageUp, Loader2, Plus, RotateCcw, Trash2, AlertCircle, Eye } from "lucide-react";
 import { identifyPhoto, checkFoods, type PhotoState } from "@/app/actions/photo";
-import { Button, Input, Note } from "./ui";
+import { Button, Input, Note, Select } from "./ui";
+import { FOOD_GROUPS, FOOD_GROUP_KEYS, type FoodGroupKey } from "@/lib/content/food-groups";
+
+type Row = { key: number; name: string; preparation: string; group: FoodGroupKey };
 import { Submit } from "./forms";
 import { OverallVerdict, VerdictList } from "./photo-verdict-view";
 
@@ -85,7 +88,7 @@ function Flow({ photo }: { photo: File }) {
   const [idState, identify] = useActionState<PhotoState, FormData>(identifyPhoto, null);
   const [checkState, check] = useActionState<PhotoState, FormData>(checkFoods, null);
   const [pending, startTransition] = useTransition();
-  const [rows, setRows] = useState<{ key: number; name: string; preparation: string }[] | null>(null);
+  const [rows, setRows] = useState<Row[] | null>(null);
   const started = useRef(false);
 
   useEffect(() => {
@@ -109,26 +112,29 @@ function Flow({ photo }: { photo: File }) {
   }
   if (idState.step !== "confirm") return null;
 
-  const editable = rows ?? idState.items.map((it, i) => ({ key: i, name: it.name, preparation: it.preparation }));
-  const update = (key: number, patch: Partial<{ name: string; preparation: string }>) =>
+  const editable = rows ?? idState.items.map((it, i) => ({ key: i, name: it.name, preparation: it.preparation, group: it.group }));
+  const update = (key: number, patch: Partial<Omit<Row, "key">>) =>
     setRows(editable.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
   return (
     <form action={check} className="space-y-3">
       <p className="font-semibold">Is this what&apos;s on the plate?</p>
-      <p className="text-sm text-muted dark:text-white/60">Fix any names, remove anything wrong, or add what the photo missed. The verdict comes from BloomCare&apos;s reviewed food-safety library, not from the AI.</p>
+      <p className="text-sm text-muted dark:text-white/60">Fix any names or food groups, remove anything wrong, or add what the photo missed. The verdict comes from BloomCare&apos;s reviewed food-safety and healthy-eating guidance, not from the AI.</p>
       {idState.note && <Note>{idState.note}</Note>}
       <ul className="space-y-2">
         {editable.map((r) => (
-          <li key={r.key} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+          <li key={r.key} className="grid grid-cols-[1fr_auto] gap-2 rounded-2xl border border-line p-2 dark:border-night-line sm:grid-cols-[1fr_1fr_1fr_auto]">
             <Input name="name" value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} aria-label="Food" required maxLength={80} />
-            <Input name="preparation" value={r.preparation} onChange={(e) => update(r.key, { preparation: e.target.value })} aria-label="How it's prepared" placeholder="How it's prepared" maxLength={120} />
+            <Input name="preparation" value={r.preparation} onChange={(e) => update(r.key, { preparation: e.target.value })} aria-label="How it's prepared" placeholder="How it's prepared" maxLength={120} className="col-span-2 sm:col-span-1" />
+            <Select name="group" value={r.group} onChange={(e) => update(r.key, { group: e.target.value as FoodGroupKey })} aria-label="Food group" className="col-span-2 sm:col-span-1">
+              {FOOD_GROUP_KEYS.map((k) => <option key={k} value={k}>{FOOD_GROUPS[k].label}</option>)}
+            </Select>
             <Button type="button" variant="ghost" aria-label={`Remove ${r.name || "this food"}`} onClick={() => setRows(editable.filter((x) => x.key !== r.key))}><Trash2 size={18} /></Button>
           </li>
         ))}
       </ul>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="soft" disabled={editable.length >= 12} onClick={() => setRows([...editable, { key: Date.now(), name: "", preparation: "" }])}><Plus size={18} /> Add a food</Button>
+        <Button type="button" variant="soft" disabled={editable.length >= 12} onClick={() => setRows([...editable, { key: Date.now(), name: "", preparation: "", group: "other" }])}><Plus size={18} /> Add a food</Button>
         <Submit>Check these foods</Submit>
       </div>
       {checkState && "error" in checkState && <ErrorLine text={checkState.error} />}

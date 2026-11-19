@@ -8,11 +8,12 @@ import { safe, UserError } from "@/lib/form";
 import { identifyFoods } from "@/lib/food-vision";
 import { judgeMeal, type JudgedItem, type VerdictLevel } from "@/lib/photo-verdict";
 import { toleranceLists } from "@/lib/queries";
+import { FOOD_GROUP_KEYS, type FoodGroupKey } from "@/lib/content/food-groups";
 
 export type PhotoState =
   | null
   | { error: string }
-  | { step: "confirm"; items: { name: string; preparation: string; confidence: string }[]; note: string }
+  | { step: "confirm"; items: { name: string; preparation: string; group: FoodGroupKey; confidence: string }[]; note: string }
   | { step: "result"; overall: VerdictLevel; items: JudgedItem[] };
 
 /** Step 1: send the photo to Claude for recognition only. Nothing is stored. */
@@ -36,8 +37,10 @@ export async function checkFoods(_: PhotoState, fd: FormData): Promise<PhotoStat
     const ctx = await actionContext("LOG_FOR_ME");
     const names = fd.getAll("name").map((v) => v.toString().trim());
     const preps = fd.getAll("preparation").map((v) => v.toString().trim());
-    const items = z.array(z.object({ name: z.string().min(1).max(80), preparation: z.string().max(120) })).min(1, "Add at least one food to check.").max(12)
-      .parse(names.map((name, i) => ({ name, preparation: preps[i] ?? "" })).filter((i) => i.name));
+    const groups = fd.getAll("group").map((v) => v.toString());
+    const items = z.array(z.object({ name: z.string().min(1).max(80), preparation: z.string().max(120), group: z.enum(FOOD_GROUP_KEYS).catch("other") }))
+      .min(1, "Add at least one food to check.").max(12)
+      .parse(names.map((name, i) => ({ name, preparation: preps[i] ?? "", group: groups[i] ?? "other" })).filter((i) => i.name));
 
     const tol = await toleranceLists(ctx.pregnancy.id);
     const result = judgeMeal(items, {

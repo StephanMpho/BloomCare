@@ -220,3 +220,47 @@ describe("photo check verdicts (rules only, never AI)", async () => {
     expect(judgeMeal([{ name: "boiled egg" }, { name: "vetkoek" }], none).overall).toBe("UNKNOWN");
   });
 });
+
+describe("photo check: healthy-for-pregnancy guidance by food group", async () => {
+  const { judgeItem, judgeMeal } = await import("@/lib/photo-verdict");
+  const { FOOD_GROUPS, FOOD_GROUP_KEYS } = await import("@/lib/content/food-groups");
+  const none = { allergies: "", nauseaTriggers: "", notTolerated: [], tolerated: [] };
+
+  it("everyday foods outside the safety library now get a sourced answer", () => {
+    const carrots = judgeItem({ name: "carrot sticks", group: "vegetables" }, none);
+    expect(carrots.level).toBe("GOOD");
+    expect(carrots.healthiness?.label).toBe("Great choice");
+    expect(carrots.healthiness?.sources.length).toBeGreaterThan(0);
+    expect(carrots.reasons.some((r) => /couldn't match/.test(r.text))).toBe(false);
+  });
+  it("foods to limit are flagged, alcohol is avoid", () => {
+    expect(judgeItem({ name: "chocolate cake", group: "sweets-snacks" }, none).level).toBe("CAUTION");
+    expect(judgeItem({ name: "red wine", group: "alcohol" }, none).level).toBe("AVOID");
+  });
+  it("specific safety rules still apply on top of the group", () => {
+    expect(judgeItem({ name: "chicken livers", group: "meat-poultry" }, none).level).toBe("AVOID");
+    expect(judgeItem({ name: "polony", group: "processed-meat" }, none).level).toBe("CAUTION");
+  });
+  it("an allergen never shows 'Great choice'", () => {
+    const r = judgeItem({ name: "peanut butter", group: "nuts-seeds" }, { ...none, allergies: "peanuts" });
+    expect(r.level).toBe("AVOID");
+    expect(r.healthiness).toBeNull();
+  });
+  it("'other' or a missing group stays unknown rather than safe", () => {
+    expect(judgeItem({ name: "mystery dish", group: "other" }, none).level).toBe("UNKNOWN");
+    expect(judgeItem({ name: "mystery dish" }, none).level).toBe("UNKNOWN");
+  });
+  it("today's veggie platter would now get a full verdict", () => {
+    const meal = judgeMeal([
+      { name: "carrot sticks", group: "vegetables" }, { name: "cucumber", group: "vegetables" },
+      { name: "hummus", group: "legumes" }, { name: "pita bread", group: "starches" }, { name: "crispbread", group: "wholegrains" },
+    ], none);
+    expect(meal.overall).toBe("GOOD");
+  });
+  it("every group except 'other' has written, sourced guidance", () => {
+    for (const k of FOOD_GROUP_KEYS) if (k !== "other") {
+      expect(FOOD_GROUPS[k].why.length).toBeGreaterThan(20);
+      expect(FOOD_GROUPS[k].sources.length).toBeGreaterThan(0);
+    }
+  });
+});

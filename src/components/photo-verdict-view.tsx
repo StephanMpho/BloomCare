@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ShieldCheck, ShieldAlert, ShieldX, Stethoscope, HelpCircle, Plus } from "lucide-react";
-import { SOURCES } from "@/lib/content/sources";
-import { VERDICT_LABEL, type JudgedItem, type VerdictLevel } from "@/lib/photo-verdict";
+import { ShieldCheck, ShieldAlert, ShieldX, Stethoscope, HelpCircle, Plus, Heart, ThumbsUp, Scale, Ban } from "lucide-react";
+import { SOURCES, type SourceId } from "@/lib/content/sources";
+import { VERDICT_LABEL, type HealthinessVerdict, type JudgedItem, type VerdictLevel } from "@/lib/photo-verdict";
 import { Badge } from "./ui";
 
 const TONE: Record<VerdictLevel, "good" | "warn" | "bad" | "info" | "neutral"> = {
@@ -10,11 +10,11 @@ const TONE: Record<VerdictLevel, "good" | "warn" | "bad" | "info" | "neutral"> =
 const ICON = { GOOD: ShieldCheck, CAUTION: ShieldAlert, AVOID: ShieldX, ASK: Stethoscope, UNKNOWN: HelpCircle } as const;
 
 const OVERALL_TEXT: Record<VerdictLevel, string> = {
-  GOOD: "Everything here is generally fine in pregnancy when prepared properly.",
-  CAUTION: "Mostly fine, with some care needed. See the notes below.",
-  AVOID: "Something on this plate is best avoided. See below for safer swaps.",
+  GOOD: "A healthy, safe choice for pregnancy when prepared properly.",
+  CAUTION: "Mostly fine, with something to limit or take care with. See the notes below.",
+  AVOID: "Something on this plate is best avoided in pregnancy. See below for safer swaps.",
   ASK: "Something here needs her clinician's advice.",
-  UNKNOWN: "Some foods aren't in BloomCare's reviewed library, so we can't give a full verdict.",
+  UNKNOWN: "We couldn't match some foods to BloomCare's guidance, so this isn't a full verdict.",
 };
 
 export function VerdictBadge({ level }: { level: VerdictLevel }) {
@@ -31,6 +31,35 @@ export function OverallVerdict({ level }: { level: VerdictLevel }) {
   );
 }
 
+const H_TONE: Record<HealthinessVerdict["level"], "good" | "warn" | "bad"> = { GREAT: "good", GOOD: "good", LIMIT: "warn", AVOID: "bad" };
+const H_ICON = { GREAT: Heart, GOOD: ThumbsUp, LIMIT: Scale, AVOID: Ban } as const;
+
+function Sources({ ids }: { ids: SourceId[] }) {
+  if (!ids.length) return null;
+  return (
+    <span className="text-xs text-muted dark:text-white/60">
+      {" "}Sources:{" "}
+      {ids.map((s, k) => (
+        <span key={s}>{k > 0 && ", "}<a className="underline" href={SOURCES[s].url} target="_blank" rel="noreferrer">{SOURCES[s].title.split(" — ")[0]}</a></span>
+      ))}
+    </span>
+  );
+}
+
+function HealthinessBlock({ h }: { h: HealthinessVerdict }) {
+  const Icon = H_ICON[h.level];
+  return (
+    <div className="mt-2 rounded-2xl bg-ivory p-2.5 text-sm dark:bg-night-line/60">
+      <p className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold">Healthy for her?</span>
+        <Badge tone={H_TONE[h.level]}><Icon size={14} aria-hidden /> {h.label}</Badge>
+        <span className="text-xs text-muted dark:text-white/60">{h.group}</span>
+      </p>
+      <p className="mt-1.5">{h.why}{h.tip && <> {h.tip}</>}<Sources ids={h.sources} /></p>
+    </div>
+  );
+}
+
 export function VerdictList({ items, canLog }: { items: JudgedItem[]; canLog: boolean }) {
   return (
     <ul className="space-y-3">
@@ -43,6 +72,7 @@ export function VerdictList({ items, canLog }: { items: JudgedItem[]; canLog: bo
             </p>
             <VerdictBadge level={it.level} />
           </div>
+          {it.healthiness && <HealthinessBlock h={it.healthiness} />}
           <ul className="mt-2 space-y-1.5 text-sm">
             {it.reasons.map((r, j) => (
               <li key={j}>
