@@ -4,6 +4,7 @@ import { requireContext } from "@/lib/context";
 import { visibleNav } from "@/components/shell";
 import { PageHeader } from "@/components/ui";
 import { ThemeToggle } from "@/components/client-bits";
+import { InstallApp } from "@/components/install-app";
 
 export default async function More() {
   const ctx = await requireContext();
@@ -11,6 +12,7 @@ export default async function More() {
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader title="More" />
+      <div className="mb-4"><InstallApp /></div>
       <ul className="overflow-hidden rounded-3xl bg-white shadow-soft dark:bg-night-card">
         {items.map((i) => (
           <li key={i.href} className="border-b border-line last:border-0 dark:border-night-line">
