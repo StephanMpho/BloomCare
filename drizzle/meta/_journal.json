@@ -29,6 +29,13 @@
       "when": 1795101823027,
       "tag": "0003_grocery_shop_date",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795103593643,
+      "tag": "0004_cadence_quarterly",
+      "breakpoints": true
     }
   ]
 }

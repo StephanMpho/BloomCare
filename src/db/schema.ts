@@ -24,7 +24,7 @@ export const planStatus = pgEnum("plan_status", [
 ]);
 export const supplementSource = pgEnum("supplement_source", ["CLINICIAN", "PHARMACIST", "NOT_YET_APPROVED"]);
 export const doseStatus = pgEnum("dose_status", ["TAKEN", "MISSED"]);
-export const cadence = pgEnum("cadence", ["WEEKLY", "MONTHLY"]);
+export const cadence = pgEnum("cadence", ["WEEKLY", "MONTHLY", "QUARTERLY"]);
 
 export const users = pgTable("users", {
   id: id(),

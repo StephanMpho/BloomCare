@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { monthKey } from "./dates";
-import { templateByKey } from "./meal-templates";
+import { PRICE_SOURCE_NOTE, templateByKey } from "./meal-templates";
 import { buildRangePlan, rangeDays, shoppingListForPlan, shoppingTrips, type PlannedMeal } from "./month-plan";
 
 type Preg = { id: string; toleratedAtStart: string; nauseaTriggers: string };
@@ -54,7 +54,7 @@ export async function createRangePlan(p: Preg, opts: { start: string; end: strin
     if (items.length) {
       await tx.insert(schema.groceryItems).values(items.map((l) => ({
         pregnancyId: p.id, month: monthKey(l.shopDate), shopDate: l.shopDate, name: l.name, category: l.category, quantity: l.quantity, unit: l.unit,
-        estCostCents: l.estCostCents, cadence: l.cadence, fromMealPlan: true, inPantry: pantry.has(l.name), notes: "Estimated price — update with the real price",
+        estCostCents: l.estCostCents, cadence: l.cadence, fromMealPlan: true, inPantry: pantry.has(l.name), notes: PRICE_SOURCE_NOTE[l.source],
       })));
     }
     const mealCost = plan.reduce((a, m) => a + (templateByKey(m.key)?.estCostCents ?? 0), 0);

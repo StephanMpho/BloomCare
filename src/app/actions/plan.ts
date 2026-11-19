@@ -7,7 +7,7 @@ import { db, schema } from "@/db";
 import { actionContext } from "@/lib/context";
 import { safe, UserError, str, isoDate } from "@/lib/form";
 import { addDays, monthKey, sastInstant, todayISO, nowHHMM } from "@/lib/dates";
-import { chooseTemplates, aggregateIngredients, SLOTS, type Slot } from "@/lib/meal-templates";
+import { chooseTemplates, aggregateIngredients, PRICE_SOURCE_NOTE, SLOTS, type Slot } from "@/lib/meal-templates";
 import { parseRand } from "@/lib/money";
 import type { ActionResult } from "@/components/forms";
 import { createRangePlan, entryFromTemplate, planAvoidPrefer } from "@/lib/plan-server";
@@ -128,7 +128,7 @@ export async function planToGroceries(fd: FormData) {
   if (list.length) {
     await db.insert(schema.groceryItems).values(list.map((l) => ({
       pregnancyId: ctx.pregnancy.id, month, name: l.name, category: l.category, quantity: l.quantity, unit: l.unit, estCostCents: l.estCostCents,
-      cadence: l.cadence, fromMealPlan: true, inPantry: pantry.has(l.name), notes: "Estimated price — update with the real price",
+      cadence: l.cadence, fromMealPlan: true, inPantry: pantry.has(l.name), notes: PRICE_SOURCE_NOTE[l.source],
     })));
   }
   revalidatePath("/groceries");

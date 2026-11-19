@@ -20,38 +20,51 @@ export type MealTemplate = {
   gentle: boolean; // suitable on hard nausea days
 };
 
-// One pack of each grocery item, with an estimated price (ZAR cents). Estimates only.
-export const GROCERY_CATALOGUE: Record<string, { name: string; category: string; unit: string; estCents: number; cadence: "WEEKLY" | "MONTHLY" }> = {
-  oats: { name: "Rolled oats 1 kg", category: "Grains", unit: "pack", estCents: 3500, cadence: "MONTHLY" },
-  bananas: { name: "Bananas 1 kg", category: "Fruits", unit: "kg", estCents: 2500, cadence: "WEEKLY" },
-  apples: { name: "Apples 1.5 kg bag", category: "Fruits", unit: "bag", estCents: 3500, cadence: "WEEKLY" },
-  oranges: { name: "Oranges 1.5 kg bag", category: "Fruits", unit: "bag", estCents: 3000, cadence: "WEEKLY" },
-  bread: { name: "Brown bread loaf", category: "Grains", unit: "loaf", estCents: 2000, cadence: "WEEKLY" },
-  crackers: { name: "Cream crackers 200 g", category: "Snacks", unit: "box", estCents: 2200, cadence: "WEEKLY" },
-  gingerBiscuits: { name: "Ginger biscuits 200 g", category: "Snacks", unit: "pack", estCents: 2000, cadence: "MONTHLY" },
-  eggs: { name: "Eggs (18)", category: "Protein", unit: "tray", estCents: 6000, cadence: "WEEKLY" },
-  milk: { name: "Milk 2 L (pasteurised)", category: "Dairy", unit: "bottle", estCents: 3500, cadence: "WEEKLY" },
-  yoghurt: { name: "Plain yoghurt 1 kg", category: "Dairy", unit: "tub", estCents: 4000, cadence: "WEEKLY" },
-  cheese: { name: "Cheddar 400 g", category: "Dairy", unit: "block", estCents: 6500, cadence: "MONTHLY" },
-  maize: { name: "Maize meal 2.5 kg", category: "Grains", unit: "bag", estCents: 4000, cadence: "MONTHLY" },
-  rice: { name: "White rice 2 kg", category: "Grains", unit: "bag", estCents: 4500, cadence: "MONTHLY" },
-  potatoes: { name: "Potatoes 2 kg", category: "Vegetables", unit: "bag", estCents: 4000, cadence: "WEEKLY" },
-  sweetPotatoes: { name: "Sweet potatoes 1 kg", category: "Vegetables", unit: "kg", estCents: 2500, cadence: "WEEKLY" },
-  spinach: { name: "Spinach bunch", category: "Vegetables", unit: "bunch", estCents: 1800, cadence: "WEEKLY" },
-  butternut: { name: "Butternut (whole)", category: "Vegetables", unit: "each", estCents: 2500, cadence: "WEEKLY" },
-  carrots: { name: "Carrots 1 kg", category: "Vegetables", unit: "kg", estCents: 1800, cadence: "WEEKLY" },
-  beans: { name: "Canned sugar beans 410 g", category: "Protein", unit: "can", estCents: 1800, cadence: "WEEKLY" },
-  lentils: { name: "Brown lentils 500 g", category: "Protein", unit: "pack", estCents: 3000, cadence: "MONTHLY" },
-  chicken: { name: "Chicken breast fillets 500 g", category: "Protein", unit: "pack", estCents: 6000, cadence: "WEEKLY" },
-  pilchards: { name: "Pilchards in tomato 400 g", category: "Protein", unit: "can", estCents: 2800, cadence: "WEEKLY" },
-  peanutButter: { name: "Peanut butter 400 g", category: "Cooking essentials", unit: "jar", estCents: 4000, cadence: "MONTHLY" },
-  ginger: { name: "Fresh ginger root", category: "Hydration essentials", unit: "piece", estCents: 1000, cadence: "WEEKLY" },
-  ors: { name: "Oral rehydration sachets (pharmacy)", category: "Hydration essentials", unit: "box", estCents: 4500, cadence: "MONTHLY" },
-  rooibos: { name: "Rooibos tea 80 bags", category: "Hydration essentials", unit: "box", estCents: 3500, cadence: "MONTHLY" },
-  soupVeg: { name: "Soup vegetables pack", category: "Vegetables", unit: "pack", estCents: 3000, cadence: "WEEKLY" },
-  jelly: { name: "Jelly powder 80 g", category: "Snacks", unit: "sachet", estCents: 1200, cadence: "MONTHLY" },
-  oil: { name: "Sunflower oil 750 ml", category: "Cooking essentials", unit: "bottle", estCents: 3500, cadence: "MONTHLY" },
-  salt: { name: "Iodised salt 1 kg", category: "Cooking essentials", unit: "pack", estCents: 1200, cadence: "MONTHLY" },
+// One pack of each grocery item with a South African price (ZAR cents).
+// PRICE_SOURCE "pmbejd": the PMBEJD Household Affordability Index, August 2026 (average of the
+//   cheapest shelf prices at 52 supermarkets and 36 butcheries in Johannesburg, Durban, Cape Town,
+//   Pietermaritzburg, Mthatha, Springbok and Mtubatuba), converted to this pack size.
+// PRICE_SOURCE "typical": item not tracked by PMBEJD; a typical SA supermarket shelf price.
+// Cadence: WEEKLY = fresh, buy each week; MONTHLY = keeps for a month; QUARTERLY = lasts ~3 months.
+export type Cadence = "WEEKLY" | "MONTHLY" | "QUARTERLY";
+export type PriceSource = "pmbejd" | "typical";
+export const PRICE_SOURCE_NOTE: Record<PriceSource, string> = {
+  pmbejd: "SA price: PMBEJD Household Affordability Index, Aug 2026 (cheapest shelf prices)",
+  typical: "Typical SA supermarket price (estimate)",
+};
+export const GROCERY_CATALOGUE: Record<string, { name: string; category: string; unit: string; estCents: number; cadence: Cadence; source: PriceSource }> = {
+  // PMBEJD Aug 2026 per-unit prices → pack price
+  bananas: { name: "Bananas 1 kg", category: "Fruits", unit: "kg", estCents: 1700, cadence: "WEEKLY", source: "pmbejd" },           // R67.20 / 4 kg
+  apples: { name: "Apples 1.5 kg bag", category: "Fruits", unit: "bag", estCents: 2300, cadence: "WEEKLY", source: "pmbejd" },      // R45.10 / 3 kg
+  oranges: { name: "Oranges 1.5 kg bag", category: "Fruits", unit: "bag", estCents: 1100, cadence: "WEEKLY", source: "pmbejd" },    // R48.95 / 7 kg
+  bread: { name: "Brown bread loaf", category: "Grains", unit: "loaf", estCents: 1600, cadence: "WEEKLY", source: "pmbejd" },       // R402.83 / 25 loaves
+  eggs: { name: "Eggs (18)", category: "Protein", unit: "tray", estCents: 4300, cadence: "WEEKLY", source: "pmbejd" },              // R142.24 / 60
+  milk: { name: "Full cream milk 2 L", category: "Dairy", unit: "bottle", estCents: 3200, cadence: "WEEKLY", source: "pmbejd" },    // R97.12 / 6 L
+  maize: { name: "Maize meal 2.5 kg", category: "Grains", unit: "bag", estCents: 2500, cadence: "MONTHLY", source: "pmbejd" },      // R295.12 / 30 kg
+  rice: { name: "White rice 2 kg", category: "Grains", unit: "bag", estCents: 2700, cadence: "MONTHLY", source: "pmbejd" },         // R132.62 / 10 kg
+  potatoes: { name: "Potatoes 2 kg", category: "Vegetables", unit: "bag", estCents: 1900, cadence: "WEEKLY", source: "pmbejd" },    // R96.38 / 10 kg
+  spinach: { name: "Spinach bunch", category: "Vegetables", unit: "bunch", estCents: 1500, cadence: "WEEKLY", source: "pmbejd" },   // R120.38 / 8 bunches
+  butternut: { name: "Butternut (about 1.5 kg)", category: "Vegetables", unit: "each", estCents: 1600, cadence: "WEEKLY", source: "pmbejd" }, // R105.75 / 10 kg
+  carrots: { name: "Carrots 1 kg", category: "Vegetables", unit: "kg", estCents: 1000, cadence: "WEEKLY", source: "pmbejd" },       // R50.38 / 5 kg
+  beans: { name: "Canned sugar beans 410 g", category: "Protein", unit: "can", estCents: 1600, cadence: "WEEKLY", source: "pmbejd" }, // R93.84 / 6 cans
+  chicken: { name: "Frozen chicken portions 500 g", category: "Protein", unit: "pack", estCents: 2200, cadence: "WEEKLY", source: "pmbejd" }, // R431.20 / 10 kg
+  pilchards: { name: "Pilchards in tomato 400 g", category: "Protein", unit: "can", estCents: 2800, cadence: "WEEKLY", source: "pmbejd" }, // R168.74 / 6 tins
+  peanutButter: { name: "Peanut butter 400 g", category: "Cooking essentials", unit: "jar", estCents: 4300, cadence: "MONTHLY", source: "pmbejd" }, // R86.35 / 2 jars
+  salt: { name: "Iodised salt 1 kg", category: "Cooking essentials", unit: "pack", estCents: 1700, cadence: "QUARTERLY", source: "pmbejd" }, // R16.89
+  oil: { name: "Sunflower oil 2 L", category: "Cooking essentials", unit: "bottle", estCents: 6500, cadence: "QUARTERLY", source: "pmbejd" }, // R163.49 / 5 L
+  // Not tracked by PMBEJD: typical SA shelf prices
+  oats: { name: "Rolled oats 1 kg", category: "Grains", unit: "pack", estCents: 4000, cadence: "MONTHLY", source: "typical" },
+  crackers: { name: "Cream crackers 200 g", category: "Snacks", unit: "box", estCents: 2000, cadence: "WEEKLY", source: "typical" },
+  gingerBiscuits: { name: "Ginger biscuits 200 g", category: "Snacks", unit: "pack", estCents: 2200, cadence: "MONTHLY", source: "typical" },
+  yoghurt: { name: "Plain yoghurt 1 kg", category: "Dairy", unit: "tub", estCents: 4000, cadence: "WEEKLY", source: "typical" },
+  cheese: { name: "Cheddar 400 g", category: "Dairy", unit: "block", estCents: 7500, cadence: "MONTHLY", source: "typical" },
+  sweetPotatoes: { name: "Sweet potatoes 1 kg", category: "Vegetables", unit: "kg", estCents: 2200, cadence: "WEEKLY", source: "typical" },
+  lentils: { name: "Brown lentils 500 g", category: "Protein", unit: "pack", estCents: 2800, cadence: "MONTHLY", source: "typical" },
+  ginger: { name: "Fresh ginger root", category: "Hydration essentials", unit: "piece", estCents: 1000, cadence: "WEEKLY", source: "typical" },
+  ors: { name: "Oral rehydration sachets (pharmacy)", category: "Hydration essentials", unit: "box", estCents: 4500, cadence: "QUARTERLY", source: "typical" },
+  rooibos: { name: "Rooibos tea 80 bags", category: "Hydration essentials", unit: "box", estCents: 4000, cadence: "QUARTERLY", source: "typical" },
+  soupVeg: { name: "Soup vegetables pack", category: "Vegetables", unit: "pack", estCents: 2500, cadence: "WEEKLY", source: "typical" },
+  jelly: { name: "Jelly powder 80 g", category: "Snacks", unit: "sachet", estCents: 1000, cadence: "MONTHLY", source: "typical" },
 };
 
 export const MEAL_TEMPLATES: MealTemplate[] = [
@@ -111,6 +124,13 @@ export const MEAL_TEMPLATES: MealTemplate[] = [
     alternative: "Ice lolly", estCostCents: 300, keywords: ["jelly"], ingredients: [{ item: "jelly", amount: 0.25 }], gentle: true },
 ];
 
+/** A meal's cost = the share of each pack it uses, at the SA pack prices above. */
+export function ingredientCostCents(ingredients: Ingredient[]) {
+  return Math.round(ingredients.reduce((a, i) => a + i.amount * (GROCERY_CATALOGUE[i.item]?.estCents ?? 0), 0));
+}
+// Keep displayed meal costs consistent with the grocery prices (no separate guesses).
+for (const t of MEAL_TEMPLATES) t.estCostCents = ingredientCostCents(t.ingredients);
+
 export const SLOTS: Slot[] = ["BREAKFAST", "MORNING_SNACK", "LUNCH", "AFTERNOON_SNACK", "SUPPER", "EVENING_SNACK"];
 
 export const MEAL_LABEL: Record<string, string> = {
@@ -163,7 +183,7 @@ export function aggregateIngredients(templateKeys: string[]) {
     .map(([item, frac]) => {
       const c = GROCERY_CATALOGUE[item];
       const packs = Math.max(1, Math.ceil(frac - 1e-9));
-      return { item, name: c.name, category: c.category, unit: c.unit, quantity: packs, estCostCents: packs * c.estCents, cadence: c.cadence };
+      return { item, name: c.name, category: c.category, unit: c.unit, quantity: packs, estCostCents: packs * c.estCents, cadence: c.cadence, source: c.source };
     })
     .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 }

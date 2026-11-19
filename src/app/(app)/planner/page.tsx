@@ -64,7 +64,7 @@ export default async function Planner({ searchParams }: { searchParams: Promise<
       <PageHeader title="Plan & Shop" subtitle="Gentle, nausea-friendly meals and the shopping that goes with them. Swap anything: her tolerance always wins."
         action={<div className="flex flex-wrap gap-2">
           <Link href="/planner/foods" className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-line bg-white px-4 font-semibold dark:border-night-line dark:bg-night-card"><ListChecks size={18} /> Her food list</Link>
-          {can(ctx.access, "GROCERIES") && <Link href="/groceries?group=trip" className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-blush/70 px-4 font-semibold dark:bg-night-line"><ShoppingBasket size={18} /> Shopping list</Link>}
+          {can(ctx.access, "GROCERIES") && <Link href={`/groceries${months.find((x) => x.trips > 0) ? `?month=${months.find((x) => x.trips > 0)!.m}` : ""}`} className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-blush/70 px-4 font-semibold dark:bg-night-line"><ShoppingBasket size={18} /> Shopping list</Link>}
         </div>} />
 
       {made && <p className="rounded-2xl bg-sage/40 p-3 text-sm">{made.label} plan ready: {made.meals} meals and snacks, with {made.trips} weekly shopping list{made.trips === 1 ? "" : "s"}. 💚</p>}
@@ -80,7 +80,7 @@ export default async function Planner({ searchParams }: { searchParams: Promise<
                   Shopping ≈ {randShort(x.shopCost)} of the {randShort(budget)} budget{x.shopCost > budget ? " (over budget: swap in cheaper meals like beans, lentils or pap)" : ""}. Estimates only.</p>}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Link href={`/planner?week=${x.start}`} className="inline-flex min-h-11 items-center rounded-2xl bg-charcoal px-4 font-semibold text-white dark:bg-blush dark:text-charcoal">View meals</Link>
-                  {can(ctx.access, "GROCERIES") && <Link href={`/groceries?month=${x.m}&group=trip`} className="inline-flex min-h-11 items-center rounded-2xl border border-line px-4 font-semibold dark:border-night-line">Shopping lists</Link>}
+                  {can(ctx.access, "GROCERIES") && <Link href={`/groceries?month=${x.m}`} className="inline-flex min-h-11 items-center rounded-2xl border border-line px-4 font-semibold dark:border-night-line">Shopping lists</Link>}
                   <form action={planMonth}><input type="hidden" name="start" value={x.m === thisMonth ? todayISO() : x.start} /><input type="hidden" name="end" value={x.end} />
                     <Submit variant="ghost"><Sparkles size={16} /> Re-make</Submit></form>
                 </div>

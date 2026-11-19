@@ -20,7 +20,7 @@ export async function addGrocery(_: ActionResult, fd: FormData): Promise<ActionR
     await db.insert(schema.groceryItems).values({
       pregnancyId: ctx.pregnancy.id, month: month.parse(str(fd, "month")), name, category: str(fd, "category") || "Other",
       quantity: numOrNull(fd, "quantity") ?? 1, unit: str(fd, "unit") || "item", estCostCents: parseRand(str(fd, "est")) ?? 0,
-      store: str(fd, "store"), cadence: str(fd, "cadence") === "MONTHLY" ? "MONTHLY" : "WEEKLY", notes: str(fd, "notes"),
+      store: str(fd, "store"), cadence: (["MONTHLY", "QUARTERLY"] as const).find((c) => c === str(fd, "cadence")) ?? "WEEKLY", notes: str(fd, "notes"),
       inPantry: bool(fd, "inPantry"),
     });
     refresh();

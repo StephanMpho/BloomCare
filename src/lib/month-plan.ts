@@ -56,12 +56,12 @@ export type TripItem = ReturnType<typeof aggregateIngredients>[number] & { shopD
 
 /**
  * Fresh (weekly) items are bought on the trip for the week they're eaten.
- * Long-lasting (monthly) items for the whole range go on the first trip.
+ * Long-lasting (monthly and 3-monthly) items for the whole range go on the first trip.
  */
 export function shoppingListForPlan(plan: PlannedMeal[], trips: ShoppingTrip[]): TripItem[] {
   if (!trips.length) return [];
   const monthly = aggregateIngredients(plan.map((p) => p.key))
-    .filter((i) => GROCERY_CATALOGUE[i.item].cadence === "MONTHLY")
+    .filter((i) => GROCERY_CATALOGUE[i.item].cadence !== "WEEKLY") // monthly + 3-monthly items: first shop
     .map((i) => ({ ...i, shopDate: trips[0].date }));
   const weekly = trips.flatMap((t) =>
     aggregateIngredients(plan.filter((p) => p.date >= t.from && p.date <= t.to).map((p) => p.key))

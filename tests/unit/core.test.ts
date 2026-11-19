@@ -3,7 +3,7 @@ import { calculateDating, eddFromLmp, validateLmp, trimesterFor } from "@/lib/pr
 import { evaluateSymptoms, mergeSnapshots, fluidsSnapshotFromDrinks } from "@/lib/safety";
 import { can, sanitizePermissions } from "@/lib/permissions";
 import { budgetSummary } from "@/lib/budget";
-import { aggregateIngredients, chooseTemplates } from "@/lib/meal-templates";
+import { aggregateIngredients, chooseTemplates, GROCERY_CATALOGUE as GROCERY_CATALOGUE_FOR_TEST } from "@/lib/meal-templates";
 import { sumNutrients } from "@/lib/nutrition";
 import { findOverlaps, hasRetinol } from "@/lib/supplements";
 import { checkFood } from "@/lib/content/food-safety";
@@ -127,7 +127,7 @@ describe("meal planning", () => {
     const list = aggregateIngredients(["oats-banana", "oats-banana", "banana-snack"]);
     const bananas = list.find((l) => l.item === "bananas")!;
     expect(bananas.quantity).toBe(1);
-    expect(bananas.estCostCents).toBe(2500);
+    expect(bananas.estCostCents).toBe(GROCERY_CATALOGUE_FOR_TEST.bananas.estCents); // one 1 kg pack at the SA price
   });
 });
 
@@ -305,5 +305,35 @@ describe("monthly meal plan (December)", async () => {
     const maize = list.filter((i) => i.item === "maize");
     expect(maize.every((i) => i.shopDate === "2026-12-01")).toBe(true);
     expect(new Set(list.filter((i) => i.item === "bananas").map((i) => i.shopDate)).size).toBeGreaterThan(1);
+  });
+});
+
+describe("shopping list: SA prices and month overview", async () => {
+  const { GROCERY_CATALOGUE, MEAL_TEMPLATES, ingredientCostCents } = await import("@/lib/meal-templates");
+  const { buildRangePlan, shoppingTrips, shoppingListForPlan } = await import("@/lib/month-plan");
+  const { monthOverview, quantityText } = await import("@/lib/shopping-overview");
+  const plan = buildRangePlan({ start: "2026-12-01", end: "2026-12-31", avoid: [], prefer: [], gentle: false });
+  const trips = shoppingTrips("2026-12-01", "2026-12-31");
+  const list = shoppingListForPlan(plan, trips);
+  const rows = list.map((i) => ({ ...i, actualCostCents: null, purchased: false, inPantry: false, notes: "" }));
+
+  it("every price is labelled with its source", () => {
+    for (const c of Object.values(GROCERY_CATALOGUE)) expect(["pmbejd", "typical"]).toContain(c.source);
+  });
+  it("meal costs come from the same SA prices", () => {
+    for (const t of MEAL_TEMPLATES) expect(t.estCostCents).toBe(ingredientCostCents(t.ingredients));
+  });
+  it("lists each product once, in its buying rhythm", () => {
+    const ov = monthOverview(rows);
+    const names = [...ov.weekly, ...ov.monthly, ...ov.quarterly].map((r) => r.name);
+    expect(new Set(names).size).toBe(names.length);
+    const bananas = ov.weekly.find((r) => r.name.startsWith("Bananas"))!;
+    expect(bananas.shops).toBeGreaterThan(1);
+    expect(quantityText(bananas)).toMatch(/each week · \d shops/);
+    expect(ov.quarterly.map((r) => r.name)).toContain("Iodised salt 1 kg");
+  });
+  it("the December plan fits a R3 000 budget", () => {
+    const total = list.reduce((a, i) => a + i.estCostCents, 0);
+    expect(total).toBeLessThan(300000);
   });
 });

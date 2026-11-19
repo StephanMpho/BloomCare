@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Trash2, Check as CheckIcon, Home, Wallet } from "lucide-react";
+import type { ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Trash2, Check as CheckIcon, Home, Repeat, CalendarDays, Archive, Plus } from "lucide-react";
 import { requirePermission } from "@/lib/context";
 import { groceriesForMonth } from "@/lib/queries";
 import { budgetSummary } from "@/lib/budget";
 import { formatDate, todayISO } from "@/lib/dates";
 import { rand, randShort } from "@/lib/money";
+import { monthOverview, quantityText, type OverviewRow } from "@/lib/shopping-overview";
 import { Card, CardTitle, PageHeader, Field, Input, Select, Badge, Note, Empty, Check, cx } from "@/components/ui";
 import { ActionForm, Submit, InlineAction } from "@/components/forms";
-import { Chart } from "@/components/charts";
 import { addGrocery, updateGrocery, toggleGrocery, deleteGrocery, setBudget } from "@/app/actions/groceries";
 
 const CATEGORIES = ["Fruits", "Vegetables", "Protein", "Dairy", "Grains", "Snacks", "Hydration essentials", "Cooking essentials", "Other"];
@@ -19,36 +20,24 @@ function shiftMonth(m: string, n: number) {
   return d.toISOString().slice(0, 7);
 }
 
-export default async function Groceries({ searchParams }: { searchParams: Promise<{ month?: string; group?: string; generated?: string }> }) {
-  const ctx = await requirePermission("GROCERIES");
-  const sp = await searchParams;
-  const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : todayISO().slice(0, 7);
-  const items = await groceriesForMonth(ctx.pregnancy.id, month);
-  const hasTrips = items.some((i) => i.shopDate);
-  const group = sp.group === "store" ? "store" : sp.group === "cadence" ? "cadence" : sp.group === "category" ? "category" : hasTrips ? "trip" : "category";
-  const tripDates = [...new Set(items.map((i) => i.shopDate).filter((d): d is string => !!d))].sort();
-  const tripLabel = (d: string) => `Shop ${tripDates.indexOf(d) + 1} · ${formatDate(d, { weekday: "short", day: "numeric", month: "short" })}`;
-  const s = budgetSummary(items, ctx.pregnancy.monthlyBudgetCents, month, todayISO());
-  const keyOf = (i: (typeof items)[number]) => group === "trip" ? (i.shopDate ? tripLabel(i.shopDate) : "Other items") : group === "store" ? (i.store || "No store chosen") : group === "cadence" ? (i.cadence === "WEEKLY" ? "Weekly purchases" : "Monthly purchases") : i.category;
-  const groups = group === "trip"
-    ? [...tripDates.map(tripLabel), ...(items.some((i) => !i.shopDate) ? ["Other items"] : [])]
-    : [...new Set(items.map(keyOf))].sort();
-  const monthLabel = new Date(month + "-15T12:00:00Z").toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
-  const pantryPlanned = items.filter((i) => i.inPantry && !i.purchased && i.fromMealPlan).length;
-  const GroceryRows = ({ rows }: { rows: typeof items }) => (
+type Item = Awaited<ReturnType<typeof groceriesForMonth>>[number];
+
+/** Tick-off rows used in the weekly-shop and plain list views. */
+function GroceryRows({ rows }: { rows: Item[] }) {
+  return (
     <ul className="divide-y divide-line dark:divide-night-line">
       {rows.map((i) => (
         <li key={i.id} className="py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className={cx(i.purchased && "line-through opacity-60")}>
-              <span className="font-semibold">{i.name}</span> <span className="text-sm text-muted">× {i.quantity} {i.unit}</span>
+              <span className="font-semibold">{i.name}</span> <span className="text-sm text-muted">× {i.quantity}</span>
               <div className="text-sm text-muted">
-                {i.actualCostCents != null ? <>Paid {rand(i.actualCostCents)}</> : <>Est. {rand(i.estCostCents)} <Badge tone="neutral">estimate</Badge></>}
+                {i.actualCostCents != null ? <>Paid {rand(i.actualCostCents)}</> : <>≈{rand(i.estCostCents)}</>}
                 {i.store && ` · ${i.store}`}{i.expiryDate && ` · use by ${i.expiryDate}`}
               </div>
             </div>
             <div className="flex flex-wrap gap-1">
-              {i.inPantry && <Badge tone="info"><Home size={12} /> In pantry</Badge>}
+              {i.inPantry && <Badge tone="info"><Home size={12} /> At home</Badge>}
               <InlineAction action={toggleGrocery} fields={{ id: i.id, field: "purchased" }} variant={i.purchased ? "primary" : "soft"}><CheckIcon size={14} /> {i.purchased ? "Bought" : "Mark bought"}</InlineAction>
               <InlineAction action={toggleGrocery} fields={{ id: i.id, field: "inPantry" }}>{i.inPantry ? "Not at home" : "Have at home"}</InlineAction>
               <InlineAction action={deleteGrocery} fields={{ id: i.id }} confirm="Remove this item?"><Trash2 size={14} /><span className="sr-only">Remove</span></InlineAction>
@@ -71,15 +60,57 @@ export default async function Groceries({ searchParams }: { searchParams: Promis
       ))}
     </ul>
   );
+}
+
+/** Month overview: each product once, in its buying rhythm. */
+function OverviewSection({ title, icon, rows, total, hint }: { title: string; icon: ReactNode; rows: OverviewRow[]; total: number; hint: string }) {
+  if (rows.length === 0) return null;
+  return (
+    <Card>
+      <CardTitle icon={icon} action={<span className="text-sm font-semibold">≈{randShort(total)}</span>}>{title}</CardTitle>
+      <p className="-mt-2 mb-2 text-sm text-muted dark:text-white/60">{hint}</p>
+      <ul className="divide-y divide-line dark:divide-night-line">
+        {rows.map((r) => (
+          <li key={r.name} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+            <div>
+              <span className="font-semibold">{r.name}</span> <span className="text-sm text-muted dark:text-white/60">{quantityText(r)}</span>
+              {(r.atHome || r.bought > 0) && (
+                <div className="mt-0.5 flex flex-wrap gap-1">
+                  {r.atHome && <Badge tone="info"><Home size={12} /> At home</Badge>}
+                  {r.bought > 0 && <Badge tone="good">{r.cadence === "WEEKLY" ? `Bought ${r.bought} of ${r.shops}` : "Bought"}</Badge>}
+                </div>
+              )}
+            </div>
+            <span className="text-sm font-semibold">≈{rand(r.totalCents)}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+export default async function Groceries({ searchParams }: { searchParams: Promise<{ month?: string; view?: string; generated?: string }> }) {
+  const ctx = await requirePermission("GROCERIES");
+  const sp = await searchParams;
+  const month = /^\d{4}-\d{2}$/.test(sp.month ?? "") ? sp.month! : todayISO().slice(0, 7);
+  const items = await groceriesForMonth(ctx.pregnancy.id, month);
+  const hasTrips = items.some((i) => i.shopDate);
+  // Planned months: "month" = each product once (weekly / monthly / 3-monthly); "week" = tick-off list per shop.
+  const view = hasTrips ? (sp.view === "week" ? "week" : "month") : "list";
+  const tripDates = [...new Set(items.map((i) => i.shopDate).filter((d): d is string => !!d))].sort();
+  const shortDate = (d: string) => formatDate(d, { weekday: "short", day: "numeric", month: "short" });
+  const tripLabel = (d: string) => `Shop ${tripDates.indexOf(d) + 1} · ${shortDate(d)}`;
   const nextTrip = tripDates.find((d) => d >= todayISO()) ?? tripDates[0];
-  const nextTripLabel = nextTrip ? tripLabel(nextTrip) : "";
-  const pct = Math.min(100, (s.spent / Math.max(1, s.budget)) * 100);
+  const s = budgetSummary(items, ctx.pregnancy.monthlyBudgetCents, month, todayISO());
+  const ov = monthOverview(items);
+  const monthLabel = new Date(month + "-15T12:00:00Z").toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
+  const pct = Math.min(100, (s.projected / Math.max(1, s.budget)) * 100);
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Shopping list & budget" subtitle="All prices in rand. Suggested prices are estimates until you enter what you actually paid."
+    <div className="mx-auto max-w-3xl space-y-5">
+      <PageHeader title="Shopping list" subtitle="South African prices from the PMBEJD food price survey (August 2026). Enter what you actually paid to keep the budget accurate."
         action={<Link href="/planner" className="text-sm underline">Back to Plan &amp; Shop</Link>} />
-      {sp.generated && <p className="rounded-2xl bg-sage/40 p-3 text-sm">Grocery list created from the meal plan. Tick off what&apos;s already at home so it isn&apos;t counted.</p>}
+      {sp.generated && <p className="rounded-2xl bg-sage/40 p-3 text-sm">Shopping list created from the meal plan. Mark anything already at home so it isn&apos;t counted.</p>}
 
       <div className="flex items-center gap-1">
         <Link href={`/groceries?month=${shiftMonth(month, -1)}`} aria-label="Previous month" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl hover:bg-blush/50"><ChevronLeft /></Link>
@@ -87,93 +118,88 @@ export default async function Groceries({ searchParams }: { searchParams: Promis
         <Link href={`/groceries?month=${shiftMonth(month, 1)}`} aria-label="Next month" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl hover:bg-blush/50"><ChevronRight /></Link>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card tone="sage" className="p-4"><div className="text-xs font-semibold uppercase text-muted">Remaining</div><div className="text-3xl font-semibold">{randShort(s.remaining)}</div><div className="text-sm">of {randShort(s.budget)}</div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/80 dark:bg-night"><div className="h-full rounded-full bg-sage-deep" style={{ width: `${pct}%` }} /></div></Card>
-        <Card className="p-4"><div className="text-xs font-semibold uppercase text-muted">Spent</div><div className="text-3xl font-semibold">{randShort(s.spent)}</div><div className="text-sm text-muted">{s.usesEstimates ? "includes some estimates" : "actual prices"}</div></Card>
-        <Card className="p-4"><div className="text-xs font-semibold uppercase text-muted">Planned (not yet bought)</div><div className="text-3xl font-semibold">{randShort(s.planned)}</div><div className="text-sm text-muted">{s.pantryCount} pantry item{s.pantryCount === 1 ? "" : "s"} excluded</div></Card>
-        <Card tone={s.projectedOver ? "blush" : "lavender"} className="p-4"><div className="text-xs font-semibold uppercase text-muted">Projected month-end</div><div className="text-3xl font-semibold">{randShort(s.projected)}</div><div className="text-sm">weekly average so far {randShort(s.weeklyAverage)}</div></Card>
-      </div>
-
-      <Card tone="lavender">
-        <CardTitle icon={<Wallet size={18} />}>Budget insights</CardTitle>
-        <ul className="list-disc space-y-1 pl-5 text-[15px]">
-          <li>You have {randShort(s.remaining)} remaining in your monthly grocery budget.</li>
-          {s.projectedOver ? <li>Planned items would take you about {randShort(s.projected - s.budget)} over budget — consider which can wait, without cutting the foods she tolerates.</li>
-            : items.length > 0 && <li>Spending plus planned items fit within the budget.</li>}
-          {pantryPlanned > 0 && <li>{pantryPlanned} planned ingredient{pantryPlanned > 1 ? "s are" : " is"} already in your pantry.</li>}
-          <li>Beans, lentils and eggs are often affordable protein options compared with some meats.</li>
-          <li>Never trade food safety or foods she can actually keep down for savings.</li>
-        </ul>
+      <Card tone={s.projectedOver ? "blush" : "sage"}>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div><div className="text-xs font-semibold uppercase text-muted">Budget</div><div className="text-2xl font-semibold">{randShort(s.budget)}</div></div>
+          <div><div className="text-xs font-semibold uppercase text-muted">This month</div><div className="text-2xl font-semibold">≈{randShort(s.projected)}</div></div>
+          <div><div className="text-xs font-semibold uppercase text-muted">Remaining</div><div className="text-2xl font-semibold">{randShort(s.remaining)}</div></div>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/80 dark:bg-night"><div className={cx("h-full rounded-full", s.projectedOver ? "bg-rose" : "bg-sage-deep")} style={{ width: `${pct}%` }} /></div>
+        <p className="mt-2 text-sm">
+          {s.projectedOver ? <>This list is about {randShort(s.projected - s.budget)} over budget. Beans, lentils, eggs, pap and pilchards are the cheapest nutritious swaps.</>
+            : items.length ? <>Spent so far {randShort(s.spent)}. The whole list fits the budget with about {randShort(s.budget - s.projected)} to spare.</> : <>No items yet.</>}
+        </p>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-semibold">Group by:</span>
-            {[...(hasTrips ? [["trip", "Shopping trip"]] : []), ["category", "Food category"], ["store", "Supermarket"], ["cadence", "Weekly / monthly"]].map(([v, l]) => (
-              <Link key={v} href={`/groceries?month=${month}&group=${v}`} className={cx("rounded-full px-3 py-1 font-semibold", group === v ? "bg-charcoal text-white dark:bg-blush dark:text-charcoal" : "bg-white shadow-soft dark:bg-night-card")}>{l}</Link>
-            ))}
-          </div>
-          {items.length === 0 ? <Empty title="No items for this month">Add items below, or create a list from the <Link className="underline" href="/planner">meal plan</Link>.</Empty> : groups.map((g) => {
-            const inGroup = items.filter((i) => keyOf(i) === g);
-            const left = inGroup.filter((i) => !i.purchased && !i.inPantry).length;
-            const est = inGroup.filter((i) => !i.purchased && !i.inPantry).reduce((a, i) => a + i.estCostCents, 0);
-            // Trip view: only the next shop is open; the others fold away to keep the page short.
-            if (group === "trip") {
-              return (
-                <details key={g} open={g === nextTripLabel} className="rounded-3xl bg-white p-4 shadow-soft dark:bg-night-card">
-                  <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-base font-semibold">{g}</h2>
-                    <span className="text-sm text-muted dark:text-white/60">{left ? `${left} to buy · ≈${randShort(est)}` : "All done ✓"}</span>
-                  </summary>
-                  <GroceryRows rows={inGroup} />
-                </details>
-              );
-            }
-            return (
-            <Card key={g}>
-              <CardTitle>{g}</CardTitle>
-              <GroceryRows rows={inGroup} />
-            </Card>
-            );
-          })}
+      {hasTrips && (
+        <div className="flex gap-2" role="tablist">
+          {[["month", "Month overview"], ["week", "Weekly shops"]].map(([v, l]) => (
+            <Link key={v} role="tab" aria-selected={view === v} href={`/groceries?month=${month}&view=${v}`}
+              className={cx("rounded-full px-4 py-2 font-semibold", view === v ? "bg-charcoal text-white dark:bg-blush dark:text-charcoal" : "bg-white shadow-soft dark:bg-night-card")}>{l}</Link>
+          ))}
         </div>
+      )}
 
-        <div className="space-y-6">
-          <Card>
-            <CardTitle>Add an item</CardTitle>
-            <ActionForm action={addGrocery} resetOnSuccess className="space-y-3">
-              <input type="hidden" name="month" value={month} />
-              <Field label="Product"><Input name="name" required /></Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Quantity"><Input name="quantity" inputMode="decimal" defaultValue="1" /></Field>
-                <Field label="Unit"><Input name="unit" defaultValue="item" /></Field>
-                <Field label="Est. price (R)"><Input name="est" inputMode="decimal" /></Field>
-                <Field label="Store"><Select name="store"><option value="">—</option>{STORES.map((x) => <option key={x}>{x}</option>)}</Select></Field>
-              </div>
-              <Field label="Category"><Select name="category">{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</Select></Field>
-              <Field label="Buy"><Select name="cadence"><option value="WEEKLY">Weekly</option><option value="MONTHLY">Monthly</option></Select></Field>
-              <Check name="inPantry" label="Already at home (pantry)" />
-              <Submit variant="rose" className="w-full">Add</Submit>
-            </ActionForm>
-          </Card>
-          <Card>
-            <CardTitle>Spending by category</CardTitle>
-            <Chart data={Object.entries(s.byCategory).map(([k, v]) => ({ category: k, rand: Math.round(v / 100) }))} x="category" series={[{ key: "rand", label: "Spent (R)" }]} empty="Mark items as bought to see spending." />
-          </Card>
+      {items.length === 0 && <Empty title="No items for this month">Create a monthly plan in <Link className="underline" href="/planner">Plan &amp; Shop</Link>, or add items below.</Empty>}
+
+      {view === "month" && (
+        <>
+          <OverviewSection title="Buy every week" icon={<Repeat size={18} />} rows={ov.weekly} total={ov.totals.weekly}
+            hint="Fresh food: buy on each weekly shop so it stays fresh." />
+          <OverviewSection title="Buy once a month" icon={<CalendarDays size={18} />} rows={ov.monthly} total={ov.totals.monthly}
+            hint={`Keeps well: buy on the first shop${tripDates[0] ? ` (${shortDate(tripDates[0])})` : ""}.`} />
+          <OverviewSection title="Buy every 3 months" icon={<Archive size={18} />} rows={ov.quarterly} total={ov.totals.quarterly}
+            hint={`Lasts about 3 months: buy once, then skip it for the next two months (about ${randShort(Math.round(ov.totals.quarterly / 3))} a month).`} />
+          <Note>To tick items off in the shop, open <Link className="underline" href={`/groceries?month=${month}&view=week`}>Weekly shops</Link>.</Note>
+        </>
+      )}
+
+      {view === "week" && tripDates.map((d) => {
+        const inTrip = items.filter((i) => i.shopDate === d);
+        const left = inTrip.filter((i) => !i.purchased && !i.inPantry);
+        return (
+          <details key={d} open={d === nextTrip} className="rounded-3xl bg-white p-4 shadow-soft dark:bg-night-card">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-semibold">{tripLabel(d)}</h2>
+              <span className="text-sm text-muted dark:text-white/60">{left.length ? `${left.length} to buy · ≈${randShort(left.reduce((a, i) => a + i.estCostCents, 0))}` : "All done ✓"}</span>
+            </summary>
+            <GroceryRows rows={inTrip} />
+          </details>
+        );
+      })}
+      {view === "week" && items.some((i) => !i.shopDate) && <Card><CardTitle>Other items</CardTitle><GroceryRows rows={items.filter((i) => !i.shopDate)} /></Card>}
+
+      {view === "list" && [...new Set(items.map((i) => i.category))].sort().map((c) => (
+        <Card key={c}><CardTitle>{c}</CardTitle><GroceryRows rows={items.filter((i) => i.category === c)} /></Card>
+      ))}
+
+      <details className="rounded-3xl bg-white p-4 shadow-soft dark:bg-night-card">
+        <summary className="flex cursor-pointer items-center gap-2 font-semibold"><Plus size={18} /> Add your own item{ctx.isOwner ? " or change the budget" : ""}</summary>
+        <div className="mt-4 grid gap-6 sm:grid-cols-2">
+          <ActionForm action={addGrocery} resetOnSuccess className="space-y-3">
+            <input type="hidden" name="month" value={month} />
+            <Field label="Product"><Input name="name" required /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Quantity"><Input name="quantity" inputMode="decimal" defaultValue="1" /></Field>
+              <Field label="Est. price (R)"><Input name="est" inputMode="decimal" /></Field>
+            </div>
+            <Field label="Category"><Select name="category">{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</Select></Field>
+            <Field label="Buy"><Select name="cadence"><option value="WEEKLY">Every week</option><option value="MONTHLY">Once a month</option><option value="QUARTERLY">Every 3 months</option></Select></Field>
+            <Check name="inPantry" label="Already at home" />
+            <Submit variant="rose" className="w-full">Add</Submit>
+          </ActionForm>
           {ctx.isOwner && (
-            <Card>
-              <CardTitle>Monthly budget</CardTitle>
+            <div>
+              <p className="mb-2 font-semibold">Monthly food budget</p>
               <ActionForm action={setBudget} className="flex gap-2">
                 <Input name="budget" inputMode="decimal" defaultValue={(ctx.pregnancy.monthlyBudgetCents / 100).toFixed(0)} aria-label="Monthly budget in rand" />
                 <Submit variant="soft" className="shrink-0">Save</Submit>
               </ActionForm>
-            </Card>
+            </div>
           )}
-          <Note>BloomCare has no live supermarket prices — there&apos;s no permitted price feed. Prices from the meal plan are rough estimates; replace them with real till prices.</Note>
         </div>
-      </div>
+      </details>
+      <Note>Prices: PMBEJD Household Affordability Index, August 2026 (the average of the cheapest shelf prices at 52 supermarkets and 36 butcheries across SA), converted to these pack sizes. Items PMBEJD doesn&apos;t track (oats, yoghurt, cheese, crackers, lentils and a few others) use typical supermarket prices. Specials and smaller packs vary, so enter real till prices to keep the budget accurate.</Note>
     </div>
   );
 }

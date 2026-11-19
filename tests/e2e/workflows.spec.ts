@@ -80,6 +80,11 @@ test.describe.serial("BloomCare critical workflows", () => {
     await expect(page.getByText("Not tolerated").first()).toBeVisible();
     await page.getByRole("button", { name: /Swap/ }).nth(1).click();
     await page.goto(`/groceries?month=${nextMonth}`);
+    await expect(page.getByRole("heading", { name: "Buy every week" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Buy once a month" })).toBeVisible();
+    // Each product appears once in the month overview (no repeats per weekly shop).
+    await expect(page.getByText("Bananas 1 kg", { exact: true })).toHaveCount(1);
+    await page.getByRole("tab", { name: "Weekly shops" }).click();
     await expect(page.getByRole("heading", { name: /^Shop 1 · / })).toBeVisible();
     await expect(page.getByRole("heading", { name: /^Shop 4 · / })).toBeVisible();
     await page.goto("/planner/foods");
@@ -87,7 +92,7 @@ test.describe.serial("BloomCare critical workflows", () => {
   });
 
   test("Workflow D: shopping updates remaining budget", async () => {
-    await page.goto(`/groceries?month=${nextMonth}`);
+    await page.goto(`/groceries?month=${nextMonth}&view=week`);
     const before = await page.getByText("Remaining", { exact: true }).locator("..").textContent();
     await page.getByText("Enter actual price / store").first().click();
     await page.getByLabel("Actual price (R)").first().fill("123.45");
